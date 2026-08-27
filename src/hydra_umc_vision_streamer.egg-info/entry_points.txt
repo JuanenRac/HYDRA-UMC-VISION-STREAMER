@@ -1,0 +1,2 @@
+[console_scripts]
+hydra-umc-vision-streamer = hydra_umc_vision_streamer.main:main

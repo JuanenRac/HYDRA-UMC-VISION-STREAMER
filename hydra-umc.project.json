@@ -1,0 +1,23 @@
+{
+  "schema_version": "1.0",
+  "ecosystem": "HYDRA-UMC",
+  "name": "HYDRA-UMC-VISION-STREAMER",
+  "version": "0.0.2",
+  "role": "service",
+  "stack": "python",
+  "technologies": [
+    "Python",
+    "GStreamer",
+    "MediaMTX"
+  ],
+  "deployment_target": "cm5",
+  "maturity": "scaffolding",
+  "family": "Vision AI Node",
+  "parent": "HYDRA-UMC-VISION-NODE",
+  "build": "",
+  "notes": "Scaffolding stage: real entry point only - the real GStreamer/MediaMTX relay pipeline is future work.",
+  "native_version": {
+    "file": "pyproject.toml",
+    "pattern": "^version\\s*=\\s*\"(\\d+)\\.(\\d+)\\.(\\d+)\""
+  }
+}

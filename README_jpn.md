@@ -1,0 +1,276 @@
+<p align="center">
+  <img src="images/HYDRA_UMC_BANNER.svg" alt="HYDRA-UMC-VISION-STREAMER banner" width="100%">
+</p>
+
+# 📹 HYDRA-UMC-VISION-STREAMER
+
+<p align="center"><a href="README.md">🇺🇸 English</a> | <a href="README_spa.md">🇪🇸 Español</a> | <a href="README_fra.md">🇫🇷 Français</a> | <a href="README_ita.md">🇮🇹 Italiano</a> | <a href="README_deu.md">🇩🇪 Deutsch</a> | <a href="README_zho.md">🇨🇳 简体中文</a> | 🇯🇵 <b>日本語</b></p>
+
+### 🚀 マルチカメラエッジ AI 向けに最適化された GStreamer パイプライン
+
+<p align="left">
+  <img src="https://img.shields.io/badge/Licencia-GPL%203.0-blue.svg" alt="GPL 3.0">
+  <img src="https://img.shields.io/badge/Framework-GStreamer-62B417.svg" alt="GStreamer">
+  <img src="https://img.shields.io/badge/Platform-Raspberry%20Pi%20CM5-BC1142.svg" alt="CM5">
+  <img src="https://img.shields.io/badge/Interface-8x%20USB%203.0-blue.svg" alt="8x USB 3.0">
+  <img src="https://img.shields.io/badge/Stage-Skeleton-lightgrey.svg" alt="Skeleton stage">
+</p>
+
+---
+
+## 1. 🛠️ 技術概要
+
+**HYDRA-UMC-VISION-STREAMER** は、Vision AI Node ファミリーの高性能な
+メディア取り込み層となることを目指しています。その役割は、最大 8 台の
+USB 3.0 カメラストリームを同時に低レベルでキャプチャ、前処理、配信する
+ことであり、Broadcom BCM2712（CM5）のハードウェアアクセラレーション ISP
+を利用して、フレームが Hailo-8 NPU に到達する前に色空間変換、リサイズ、
+正規化を行います。
+
+これは、ファミリーの統合親プロジェクトである
+**[HYDRA-UMC-VISION-NODE](https://github.com/JuanenRac/HYDRA-UMC-VISION-NODE)** の 4 つの子プロジェクトの 1 つです：本プロジェクトはキャプチャ/前処理のみを担当し、独自の Hailo-8 推論、gRPC API、安全ロジックは実行しません——これらは意図的に他の 3 つの兄弟プロジェクトに分割されています。
+
+### 要点
+
+* ⚡ **ゼロコピーパイプライン（計画中）：** 不要なフレームコピーを避けるよう設計された、V4L2 と HailoRT の間のバッファ受け渡し。
+* 🌈 **ハードウェア前処理（計画中）：** Pi の ISP を使用したリアルタイムのリサイズとピクセルフォーマット変換により、本来フレームごとに CPU が担うはずの作業をオフロードします。
+* 📡 **RTSP/WebRTC サポート（計画中）：** 完全な検知パイプラインを経由しないリモート監視のための、オプションの低遅延ストリーミング出力。
+* 🛠️ **動的設定（計画中）：** カメラごとの露出、ゲイン、解像度の制御。
+* 🧩 **独立したプロジェクトとして存在する理由：** キャプチャ/ISP チューニングは、モデル推論や安全ロジックとは異なるスキルと異なる障害領域を持ちます——独自のプロセスとして保つことで、キャプチャ側のバグが [HYDRA-UMC-SAFETY-ZONES](https://github.com/JuanenRac/HYDRA-UMC-SAFETY-ZONES) を巻き込むことがなくなり、両者を独立して開発・テストできます。
+
+**正直な現状確認 —— 今日実際に動くもの：** 本リポジトリは現在スケルトン
+段階にあります。実際のエントリポイント（`src/hydra_umc_vision_streamer/main.py`）
+は、プロジェクト名、インストール済みバージョン、そして役割を説明する 1 行を
+表示し、終了コード 0 で終了します。上記で説明した GStreamer パイプライン、
+V4L2 キャプチャ、ISP 統合、ストリーミングロジックはいずれもまだコードとして
+存在していません。実際に出荷済みの内容は [`CHANGELOG.md`](CHANGELOG.md)
+を、まだ残っている作業は下記の「現在の状況と次のステップ」セクションを
+参照してください。
+
+---
+
+## 2. 🔄 目標パイプラインアーキテクチャ
+
+下図は、本スケルトンが構築を目指している目標データフローであり、今日
+実行されているパイプラインではありません。
+
+```mermaid
+graph LR
+    USB[8x USB Cameras] --> V4L2[V4L2 Capture]
+    V4L2 --> ISP[Hardware ISP<br/>Resize/Format]
+    ISP --> TEE[Tee Element]
+    TEE --> HAI[Hailo NPU Inference]
+    TEE --> DISP[Local Display / Stream]
+```
+
+---
+
+## 3. 🧠 高度な技術情報
+
+### なぜ `hardware/`、`firmware/`、`os/`、`models/` がここに存在しないのか
+
+[HYDRA-UMC](https://github.com/JuanenRac/HYDRA-UMC) 内部のカスタム
+STM32H745/STM32G474 基板とは異なり、CM5 + Hailo-8 は市販のハードウェア
+であり、独自に設計する基板はありません——そのため、5 つの Vision AI Node
+プロジェクトのいずれにも `hardware/`/`firmware/` フォルダは存在しません。
+`os/`（共有 HydraOS イメージ）と `models/`（実際に NPU に配信される、
+コンパイル済みの `.hef` ファイル）は、CM5 ホストイメージと Hailo-8
+デバイスハンドルを保持するプロセスである統合親プロジェクト
+[HYDRA-UMC-VISION-NODE](https://github.com/JuanenRac/HYDRA-UMC-VISION-NODE) にのみ存在します——ここに別のコピーを持つことは、同期を保つための余分な状態が増えるだけで、何の利益にもなりません。
+
+### 計画中のパイプライン形態
+
+上図の `Tee` 要素は、実装に先立って既に決定されている重要な設計上の
+決定です：キャプチャ/前処理されたフレームは、2 つの消費者に同時に分岐
+することを意図しています——Hailo-8 推論パス（[HYDRA-UMC-VISION-NODE](https://github.com/JuanenRac/HYDRA-UMC-VISION-NODE) に供給）と、人間による監視のためのオプションのローカル表示/RTSP-WebRTC ストリームです——監視パスが推論パスに遅延を追加することはありません。
+
+### 本スケルトンで既に行われた設計上の決定
+
+* **バージョンはハードコードではなく、インストール済みパッケージのメタデータから読み取られます** —— `main.py` は 2 つ目の `__version__` 文字列の代わりに `importlib.metadata.version("hydra-umc-vision-streamer")` を呼び出すため、`bump_version.py` が編集すべき箇所は常に 1 か所であり、両者が食い違うことは決してありません。
+* **オドメーター式のインクリメントは自動的に `PATCH`/`MINOR` にのみ触れます** —— `bump_version.py` は `PATCH` が 9 を超えると `MINOR` に、`MINOR` が 9 を超えると `MAJOR` に繰り上がりますが、`MAJOR` 自体を自動で増加させることは決してありません。これは意図的な人間による決定であり、`HYDRA-UMC-EDITOR-URDF/bump_version.py` および `HYDRA-UMC-SUITE/bump_version.py` と同じ慣例です。
+
+---
+
+## 📂 リポジトリ構成
+
+```text
+HYDRA-UMC-VISION-STREAMER/
+├── src/                 # ソースコード（hydra_umc_vision_streamer パッケージ）
+├── docs/                # ドキュメントとチューニングガイド
+├── build/               # ビルド出力（ローカルの .venv もここに存在）
+├── images/              # メディアと図表
+├── scripts/             # ユーティリティスクリプト
+├── pyproject.toml       # パッケージメタデータ、依存関係、オドメーターバージョン
+├── bump_version.py      # オドメーター式バージョンインクリメント（build.sh/.bat が実行）
+├── build.sh / build.bat # venv + editable インストール + コンパイルチェック
+├── run.sh / run.bat     # ローカル venv からエントリポイントを実行
+└── CHANGELOG.md         # バージョンごとの履歴（オドメーター方式、日付なし）
+```
+
+`hardware/`、`firmware/`、`os/`、`models/` フォルダは存在しません——理由は
+上記「高度な技術情報」を参照してください。`os/` と `models/` は統合親
+プロジェクトである [HYDRA-UMC-VISION-NODE](https://github.com/JuanenRac/HYDRA-UMC-VISION-NODE) にのみ存在します。
+
+---
+
+## 🏗️ ビルドと実行
+
+### 前提条件
+
+* `PATH` 上に **Python 3.10 以降**があること（スクリプトは先に `python3` を試し、次に `python` にフォールバックします）。
+* GStreamer、V4L2 ツール、その他のネイティブ依存関係は現時点では不要です——この段階では**サードパーティのランタイム依存関係が一切ありません**（`pyproject.toml` の `dependencies = []`）。
+* ローカル仮想環境（`.venv/` 下）には数十 MB のディスク容量が必要です。
+
+### ステップバイステップ
+
+```bash
+# Linux / macOS
+./build.sh
+```
+
+1. **オドメーター式バージョンインクリメント** — `bump_version.py` を実行し、ビルドのたびに `pyproject.toml` 内の `PATCH` を増加させます（上記の規則に従って `MINOR`/`MAJOR` に繰り上がります）。
+2. **仮想環境** — `.venv/` が存在しない場合は作成し、存在する場合は再利用します。
+3. **Editable インストール** — `pip install -e .` により `src/` 下の変更が即座に反映され、`hydra-umc-vision-streamer` コンソールエントリポイントが登録されます。
+4. **コンパイルチェック** — `python -m compileall -q src` が `src/` 下の各ファイルをバイトコンパイルし、あるファイルが `main.py` から一度もインポートされない場合でも、エコシステム全体にわたる構文エラーを検出します。
+
+`set -euo pipefail` は最初に失敗したステップでスクリプトを停止させます。
+4 つのステップすべてが成功した場合にのみ `== Build OK ==` を表示します。
+
+```bash
+./run.sh
+```
+
+`.venv` 内のインタープリタを特定し（POSIX と Windows 両方の `.venv`
+ディレクトリ構造を処理）、`python -m hydra_umc_vision_streamer.main` を
+実行して名前・バージョン・役割を表示します。
+
+```bat
+:: Windows - 手順は同じ、バッチ構文
+build.bat
+run.bat
+```
+
+### トラブルシューティング
+
+* **`python`/`python3` が見つからない** —— Python 3.10+ をインストールし `PATH` に含まれていることを確認してください。
+* **`compileall` が失敗する** —— `src/` 下に実際の構文エラーが導入されたことを意味します。ビルドは意図的にインストールに触れることなく停止します。
+* **`run.sh`/`run.bat` が「`.venv` が見つかりません」と表示する** —— 先に少なくとも 1 回 `build.sh`/`build.bat` を実行してください。`run` 自体が環境を作成することはありません。
+* **editable インストールが古いままになる** —— `.venv/` を削除して再構築してください。`pip install -e .` は通常、ソースの変更をリアルタイムで認識するため、これが必要になることはまれです。
+
+---
+
+## 🚀 現在の状況と次のステップ
+
+**今日実現していること：** 検証済みのエントリポイントを持つ実際のインストール
+可能な Python パッケージ（実際に取得されたビルド/実行出力については
+[`CHANGELOG.md`](CHANGELOG.md) を参照）、そしてビルドに組み込まれた
+オドメーター式バージョンインクリメント。
+
+**まだ残っている作業（順不同、確定した期限なし）：**
+
+* 実際の GStreamer パイプライン（キャプチャ、`Tee`、ISP 統合）。
+* 最大 8 台の USB 3.0 カメラからの V4L2 キャプチャと、ハードウェア ISP によるリサイズ/フォーマット変換。
+* [HYDRA-UMC-VISION-NODE](https://github.com/JuanenRac/HYDRA-UMC-VISION-NODE) が保持する Hailo-8 ランタイムへのゼロコピー受け渡し。
+* オプションの RTSP/WebRTC 出力とカメラごとの動的設定（露出、ゲイン、解像度）。
+
+---
+
+## 🔗 関連プロジェクト
+
+本プロジェクトは、同一著者（JuanenRac / Electro Hobby 3D）による、
+ファームウェア、制御ソフトウェア、AI ノード、フリート管理ツールにまたがる、
+より大きなロボティクスエコシステムの一部です。ご要望が実際にはこれらの
+プロジェクトのいずれかに関するものであり、本リポジトリのものではない
+可能性もあるため、知っておく価値があります。
+
+### プロジェクトファミリー
+
+**親プロジェクト：** **[HYDRA-UMC-VISION-NODE](https://github.com/JuanenRac/HYDRA-UMC-VISION-NODE)** —— 本パイプラインが供給する統合親プロジェクト。
+
+**兄弟プロジェクト：**
+- **[HYDRA-UMC-DETECTION-HEF](https://github.com/JuanenRac/HYDRA-UMC-DETECTION-HEF)** — 親プロジェクトがその Hailo-8 NPU にロードする `.hef` モデルをコンパイルします。
+- **[HYDRA-UMC-SAFETY-ZONES](https://github.com/JuanenRac/HYDRA-UMC-SAFETY-ZONES)** — 親プロジェクトの知覚結果を侵入検知と E-STOP トリガーに変換します。
+- **[HYDRA-UMC-VISUAL-SERVOING-API](https://github.com/JuanenRac/HYDRA-UMC-VISUAL-SERVOING-API)** — 親プロジェクトの知覚結果を運動学的な姿勢補正に変換します。
+
+本プロジェクトは、Vision AI Node ファミリー外に直接関連するプロジェクトを
+持ちません（エコシステム自身の関係図に基づく）——その他すべては下記の
+「エコシステムのその他のプロジェクト」を参照してください。
+
+### エコシステムのその他のプロジェクト
+
+**HYDRA-UMC プラットフォーム** — マルチロボット・マイクロファクトリーセル
+- **[HYDRA-UMC](https://github.com/JuanenRac/HYDRA-UMC)** — 最大 8 台のロボットアームを統括する CM5 + STM32H745 マザーボード。
+- **[HYDRA-UMC-SERVER](https://github.com/JuanenRac/HYDRA-UMC-SERVER)** — すべての制御クライアントが接続する Express/WebSocket バックエンド。
+- **[HYDRA-UMC-STUDIO](https://github.com/JuanenRac/HYDRA-UMC-STUDIO)** — Web ベースの制御ダッシュボード、マルチロボット 3D 可視化。
+- **[HYDRA-UMC-ANDROID-CONTROL](https://github.com/JuanenRac/HYDRA-UMC-ANDROID-CONTROL)** — Wi-Fi/Bluetooth 経由の Android 制御アプリ。
+- **[HYDRA-UMC-IOS-CONTROL](https://github.com/JuanenRac/HYDRA-UMC-IOS-CONTROL)** — Flutter で構築された iOS/iPadOS 制御アプリ。
+- **[HYDRA-UMC-SUITE](https://github.com/JuanenRac/HYDRA-UMC-SUITE)** — デスクトップ版群制御コマンドセンター（Python/PySide6）。
+- **[HYDRA-UMC-EDITOR-URDF](https://github.com/JuanenRac/HYDRA-UMC-EDITOR-URDF)** — ロボットカタログ向けのデスクトップ版 URDF モデルエディター。
+- **[HYDRA-UMC-DSI](https://github.com/JuanenRac/HYDRA-UMC-DSI)** — 機載 DSI タッチスクリーン用のネイティブタッチ UI。
+
+**URTC プラットフォーム** — すべての HYDRA-UMC ロボットアームが搭載するツールヘッドコントローラー
+- **[URTC](https://github.com/JuanenRac/URTC)** — CAN バスツールヘッドコントローラー、25 種類のツールプロファイル。
+- **[URTC-FLASHER](https://github.com/JuanenRac/URTC-FLASHER)** — デスクトップ版 CAN-OTA + SWD/JTAG フラッシュツール。
+- **[URTC-TESTER](https://github.com/JuanenRac/URTC-TESTER)** — デスクトップ版ライブ CAN バス診断ツール。
+- **[URTC-WEB-STUDIO](https://github.com/JuanenRac/URTC-WEB-STUDIO)** — Web Serial API によるブラウザベースの代替版。
+
+**🧠 認知 AI ノード（Hailo-10）**
+- [HYDRA-UMC-COGNITIVE-NODE](https://github.com/JuanenRac/HYDRA-UMC-COGNITIVE-NODE)
+- [HYDRA-UMC-VLA-ENGINE](https://github.com/JuanenRac/HYDRA-UMC-VLA-ENGINE)
+- [HYDRA-UMC-VOICE-UI](https://github.com/JuanenRac/HYDRA-UMC-VOICE-UI)
+- [HYDRA-UMC-SEMANTIC-PLANNER](https://github.com/JuanenRac/HYDRA-UMC-SEMANTIC-PLANNER)
+- [HYDRA-UMC-DOCS-QA](https://github.com/JuanenRac/HYDRA-UMC-DOCS-QA)
+
+**🐝 オーケストレーションと群制御**
+- [HYDRA-UMC-ORCHESTRATOR](https://github.com/JuanenRac/HYDRA-UMC-ORCHESTRATOR)
+- [HYDRA-UMC-SWARM-SYNC](https://github.com/JuanenRac/HYDRA-UMC-SWARM-SYNC)
+- [HYDRA-UMC-PATH-PLANNER-3D](https://github.com/JuanenRac/HYDRA-UMC-PATH-PLANNER-3D)
+- [HYDRA-UMC-JOB-DISPATCHER](https://github.com/JuanenRac/HYDRA-UMC-JOB-DISPATCHER)
+- [HYDRA-UMC-NODE-HEALING](https://github.com/JuanenRac/HYDRA-UMC-NODE-HEALING)
+
+**🎮 デジタルツインとシミュレーション**
+- [HYDRA-UMC-TWIN](https://github.com/JuanenRac/HYDRA-UMC-TWIN)
+- [HYDRA-UMC-PHYSICS-REPLICA](https://github.com/JuanenRac/HYDRA-UMC-PHYSICS-REPLICA)
+- [HYDRA-UMC-HIL-BRIDGE](https://github.com/JuanenRac/HYDRA-UMC-HIL-BRIDGE)
+- [HYDRA-UMC-SYNTHETIC-DATA-GEN](https://github.com/JuanenRac/HYDRA-UMC-SYNTHETIC-DATA-GEN)
+
+**📊 データと分析**
+- [HYDRA-UMC-DATALAKE](https://github.com/JuanenRac/HYDRA-UMC-DATALAKE)
+- [HYDRA-UMC-TELEMETRY-COLLECTOR](https://github.com/JuanenRac/HYDRA-UMC-TELEMETRY-COLLECTOR)
+- [HYDRA-UMC-ANOMALY-DETECTOR](https://github.com/JuanenRac/HYDRA-UMC-ANOMALY-DETECTOR)
+- [HYDRA-UMC-PRODUCTION-REPORTS](https://github.com/JuanenRac/HYDRA-UMC-PRODUCTION-REPORTS)
+
+**🏭 産業用ゲートウェイ**
+- [HYDRA-UMC-GATEWAY-INDUSTRIAL](https://github.com/JuanenRac/HYDRA-UMC-GATEWAY-INDUSTRIAL)
+- [HYDRA-UMC-OPCUA-SERVER](https://github.com/JuanenRac/HYDRA-UMC-OPCUA-SERVER)
+- [HYDRA-UMC-MQTT-BROKER](https://github.com/JuanenRac/HYDRA-UMC-MQTT-BROKER)
+- [HYDRA-UMC-MTCONNECT-ADAPTER](https://github.com/JuanenRac/HYDRA-UMC-MTCONNECT-ADAPTER)
+
+**🛠️ 補完ツール**
+- [URTC-SMART-RACK](https://github.com/JuanenRac/URTC-SMART-RACK)
+- [URTC-VISION-TOOL](https://github.com/JuanenRac/URTC-VISION-TOOL)
+- [HYDRA-UMC-WATCH](https://github.com/JuanenRac/HYDRA-UMC-WATCH)
+- [HYDRA-UMC-TOOL-CLI](https://github.com/JuanenRac/HYDRA-UMC-TOOL-CLI)
+- [HYDRA-UMC-DASHBOARD-AI](https://github.com/JuanenRac/HYDRA-UMC-DASHBOARD-AI)
+
+---
+
+## 👤 作者
+**JuanenRac**（Electro Hobby 3D）
+📧 electrohobby3d@gmail.com
+
+## 📜 ライセンス
+GPL-3.0 —— 詳細は LICENSE を参照してください。
+
+## 関連プロジェクト
+
+> Canonical public ecosystem relationship map.
+
+**Direct integrations:**
+[HYDRA-UMC-OS](https://github.com/JuanenRac/HYDRA-UMC-OS) · [HYDRA-UMC-SDK](https://github.com/JuanenRac/HYDRA-UMC-SDK) · [HYDRA-UMC-SERVER](https://github.com/JuanenRac/HYDRA-UMC-SERVER) · [URTC](https://github.com/JuanenRac/URTC) · [HYDRA-UMC-VISION-NODE](https://github.com/JuanenRac/HYDRA-UMC-VISION-NODE) · [HYDRA-UMC-DETECTION-HEF](https://github.com/JuanenRac/HYDRA-UMC-DETECTION-HEF) · [HYDRA-UMC-SAFETY-ZONES](https://github.com/JuanenRac/HYDRA-UMC-SAFETY-ZONES)
+
+**Platform and contracts:**
+[HYDRA-UMC-OS](https://github.com/JuanenRac/HYDRA-UMC-OS) · [HYDRA-UMC-SDK](https://github.com/JuanenRac/HYDRA-UMC-SDK)
+
+**Rest of the ecosystem:**
+All remaining public repositories are grouped by the seven ecosystem layers in the [JuanenRac ecosystem dashboard](https://juanenrac.github.io/JuanenRac/).
