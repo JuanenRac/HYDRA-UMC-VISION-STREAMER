@@ -16,4 +16,4 @@ else
   exit 1
 fi
 
-exec "$VENV_PY" -m hydra_umc_vision_streamer.main
+exec "$VENV_PY" -m hydra_umc_vision_streamer.main "$@"

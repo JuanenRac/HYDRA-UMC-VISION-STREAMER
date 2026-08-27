@@ -2,7 +2,7 @@
   "schema_version": "1.0",
   "ecosystem": "HYDRA-UMC",
   "name": "HYDRA-UMC-VISION-STREAMER",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "role": "service",
   "stack": "python",
   "technologies": [
@@ -11,11 +11,11 @@
     "MediaMTX"
   ],
   "deployment_target": "cm5",
-  "maturity": "scaffolding",
+  "maturity": "functional",
   "family": "Vision AI Node",
   "parent": "HYDRA-UMC-VISION-NODE",
   "build": "",
-  "notes": "Scaffolding stage: real entry point only - the real GStreamer/MediaMTX relay pipeline is future work.",
+  "notes": "Functional v0: real per-camera config validation, GStreamer pipeline description generation, and MediaMTX paths.yml generation, exposed via 'config validate'/'config gst'/'config mediamtx'. 24 tests. Actually running the generated pipeline against physical USB cameras needs the V4L2/GStreamer/Hailo-8 runtime, which is future work.",
   "native_version": {
     "file": "pyproject.toml",
     "pattern": "^version\\s*=\\s*\"(\\d+)\\.(\\d+)\\.(\\d+)\""

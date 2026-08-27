@@ -13,7 +13,7 @@
   <img src="https://img.shields.io/badge/Framework-GStreamer-62B417.svg" alt="GStreamer">
   <img src="https://img.shields.io/badge/Platform-Raspberry%20Pi%20CM5-BC1142.svg" alt="CM5">
   <img src="https://img.shields.io/badge/Interface-8x%20USB%203.0-blue.svg" alt="8x USB 3.0">
-  <img src="https://img.shields.io/badge/Stage-Skeleton-lightgrey.svg" alt="Skeleton stage">
+  <img src="https://img.shields.io/badge/Stage-Functional%20v0-green.svg" alt="Functional v0">
 </p>
 
 ---
@@ -32,18 +32,14 @@ USB 3.0 カメラストリームを同時に低レベルでキャプチャ、前
 
 ### 要点
 
-* ⚡ **ゼロコピーパイプライン（計画中）：** 不要なフレームコピーを避けるよう設計された、V4L2 と HailoRT の間のバッファ受け渡し。
-* 🌈 **ハードウェア前処理（計画中）：** Pi の ISP を使用したリアルタイムのリサイズとピクセルフォーマット変換により、本来フレームごとに CPU が担うはずの作業をオフロードします。
-* 📡 **RTSP/WebRTC サポート（計画中）：** 完全な検知パイプラインを経由しないリモート監視のための、オプションの低遅延ストリーミング出力。
-* 🛠️ **動的設定（計画中）：** カメラごとの露出、ゲイン、解像度の制御。
+* ✅ **実装済み v0 —— 設定・パイプライン・リレー生成：** `config.py` はカメラごとの JSON 設定（デバイス、解像度、fps、フォーマット）を検証し、`pipeline.py` はあるカメラの実際の GStreamer パイプライン記述を生成し、`mediamtx_config.py` は対応する MediaMTX の `paths.yml` を生成します。下記の `config validate`/`config gst`/`config mediamtx` から利用可能で、実行にもテストにも GStreamer ランタイム、V4L2、物理カメラは不要です。
+* 📡 **RTSP/WebRTC サポート（一部計画中）：** RTSP リレーパス（`rtspclientsink` → MediaMTX）は設計済みで、その設定は上記で実際に生成されています。実際に実行するにはこの環境にない GStreamer ランタイムが必要です。WebRTC 出力は引き続き完全に計画段階です。
+* ⚡ **ゼロコピーパイプライン（計画中）：** 不要なフレームコピーを避けるよう設計された、V4L2 と HailoRT の間のバッファ受け渡し。*（将来の作業——この環境にはまだない実際の V4L2/HailoRT ランタイムが必要です。）*
+* 🌈 **ハードウェア前処理（計画中）：** Pi の ISP を使用したリアルタイムのリサイズとピクセルフォーマット変換により、本来フレームごとに CPU が担うはずの作業をオフロードします。*（同じ理由で将来の作業です。）*
+* 🛠️ **動的設定：** カメラごとの解像度、フレームレート、ピクセルフォーマットは今日すでに実装され検証されています（`config.py`）。露出/ゲイン制御は実際の V4L2 デバイスが必要で、将来の作業です。
 * 🧩 **独立したプロジェクトとして存在する理由：** キャプチャ/ISP チューニングは、モデル推論や安全ロジックとは異なるスキルと異なる障害領域を持ちます——独自のプロセスとして保つことで、キャプチャ側のバグが [HYDRA-UMC-SAFETY-ZONES](https://github.com/JuanenRac/HYDRA-UMC-SAFETY-ZONES) を巻き込むことがなくなり、両者を独立して開発・テストできます。
 
-**正直な現状確認 —— 今日実際に動くもの：** 本リポジトリは現在スケルトン
-段階にあります。実際のエントリポイント（`src/hydra_umc_vision_streamer/main.py`）
-は、プロジェクト名、インストール済みバージョン、そして役割を説明する 1 行を
-表示し、終了コード 0 で終了します。上記で説明した GStreamer パイプライン、
-V4L2 キャプチャ、ISP 統合、ストリーミングロジックはいずれもまだコードとして
-存在していません。実際に出荷済みの内容は [`CHANGELOG.md`](CHANGELOG.md)
+**正直な現状確認 —— 今日実際に動くもの：** 設定の検証、GStreamer パイプライン記述の生成、そして MediaMTX リレー設定の生成（`config.py`、`pipeline.py`、`mediamtx_config.py`）は実装され、テストされています（24 個のテスト）。これらのいずれも V4L2 デバイスを開いたり、GStreamer をインポートしたり、物理カメラと通信したりはしません——生成されたパイプラインを実際に実行するには、この環境にない実際のランタイムとハードウェアが必要です。実際に出荷済みの内容は [`CHANGELOG.md`](CHANGELOG.md)
 を、まだ残っている作業は下記の「現在の状況と次のステップ」セクションを
 参照してください。
 
@@ -51,8 +47,7 @@ V4L2 キャプチャ、ISP 統合、ストリーミングロジックはいず�
 
 ## 2. 🔄 目標パイプラインアーキテクチャ
 
-下図は、本スケルトンが構築を目指している目標データフローであり、今日
-実行されているパイプラインではありません。
+下図は、本プロジェクトが構築を目指している目標データフローです——その*形態*（どの要素がどれに供給するか、`Tee` の分岐）は `pipeline.py` によって固定され、今日すでに実際の `gst-launch-1.0` 構文として生成されますが、この図の内容はまだ何も実行されていません：それには実際の V4L2/GStreamer/Hailo-8 ランタイムと物理 USB カメラが必要です。
 
 ```mermaid
 graph LR
@@ -84,10 +79,12 @@ STM32H745/STM32G474 基板とは異なり、CM5 + Hailo-8 は市販のハード�
 決定です：キャプチャ/前処理されたフレームは、2 つの消費者に同時に分岐
 することを意図しています——Hailo-8 推論パス（[HYDRA-UMC-VISION-NODE](https://github.com/JuanenRac/HYDRA-UMC-VISION-NODE) に供給）と、人間による監視のためのオプションのローカル表示/RTSP-WebRTC ストリームです——監視パスが推論パスに遅延を追加することはありません。
 
-### 本スケルトンで既に行われた設計上の決定
+### 既に行われた設計上の決定
 
 * **バージョンはハードコードではなく、インストール済みパッケージのメタデータから読み取られます** —— `main.py` は 2 つ目の `__version__` 文字列の代わりに `importlib.metadata.version("hydra-umc-vision-streamer")` を呼び出すため、`bump_version.py` が編集すべき箇所は常に 1 か所であり、両者が食い違うことは決してありません。
 * **オドメーター式のインクリメントは自動的に `PATCH`/`MINOR` にのみ触れます** —— `bump_version.py` は `PATCH` が 9 を超えると `MINOR` に、`MINOR` が 9 を超えると `MAJOR` に繰り上がりますが、`MAJOR` 自体を自動で増加させることは決してありません。これは意図的な人間による決定であり、`HYDRA-UMC-EDITOR-URDF/bump_version.py` および `HYDRA-UMC-SUITE/bump_version.py` と同じ慣例です。
+* **MediaMTX の YAML は手書きであり、PyYAML の上には構築されていません** —— `mediamtx_config.py` の出力形態（フラットな `paths:` マップ、カメラごとに 1 つの `source: publisher` エントリ）は十分にシンプルで固定されており、実際の依存関係はまだ正当化されません。カメラごとの設定にネストされたフィールドやリスト値のフィールドが増えた場合は、その時点で見直します。
+* **パイプラインと MediaMTX 設定は、カメラごとに 1 つの RTSP パスで一致していなければなりません** —— `rtsp_url_for()` はそれを（カメラ名から）導出する唯一の場所であるため、`config gst` と `config mediamtx` があるカメラのストリームがどこにあるかについて食い違うことは決してありません。
 
 ---
 
@@ -96,13 +93,19 @@ STM32H745/STM32G474 基板とは異なり、CM5 + Hailo-8 は市販のハード�
 ```text
 HYDRA-UMC-VISION-STREAMER/
 ├── src/                 # ソースコード（hydra_umc_vision_streamer パッケージ）
+│   └── hydra_umc_vision_streamer/
+│       ├── config.py           # カメラごとの設定の解析/検証
+│       ├── pipeline.py         # GStreamer パイプライン記述の生成
+│       ├── mediamtx_config.py  # MediaMTX paths.yml の生成
+│       └── main.py             # CLI エントリポイント（素の呼び出し + `config`）
+├── tests/               # 実際の pytest スイート（config、pipeline、mediamtx、CLI）
 ├── docs/                # ドキュメントとチューニングガイド
 ├── build/               # ビルド出力（ローカルの .venv もここに存在）
 ├── images/              # メディアと図表
 ├── scripts/             # ユーティリティスクリプト
 ├── pyproject.toml       # パッケージメタデータ、依存関係、オドメーターバージョン
 ├── bump_version.py      # オドメーター式バージョンインクリメント（build.sh/.bat が実行）
-├── build.sh / build.bat # venv + editable インストール + コンパイルチェック
+├── build.sh / build.bat # venv + editable インストール + コンパイルチェック + テスト
 ├── run.sh / run.bat     # ローカル venv からエントリポイントを実行
 └── CHANGELOG.md         # バージョンごとの履歴（オドメーター方式、日付なし）
 ```
@@ -130,11 +133,12 @@ HYDRA-UMC-VISION-STREAMER/
 
 1. **オドメーター式バージョンインクリメント** — `bump_version.py` を実行し、ビルドのたびに `pyproject.toml` 内の `PATCH` を増加させます（上記の規則に従って `MINOR`/`MAJOR` に繰り上がります）。
 2. **仮想環境** — `.venv/` が存在しない場合は作成し、存在する場合は再利用します。
-3. **Editable インストール** — `pip install -e .` により `src/` 下の変更が即座に反映され、`hydra-umc-vision-streamer` コンソールエントリポイントが登録されます。
+3. **Editable インストール** — `pip install -e ".[dev]"` により `src/` 下の変更が即座に反映され、`pytest` がインストールされ、`hydra-umc-vision-streamer` コンソールエントリポイントが登録されます。
 4. **コンパイルチェック** — `python -m compileall -q src` が `src/` 下の各ファイルをバイトコンパイルし、あるファイルが `main.py` から一度もインポートされない場合でも、エコシステム全体にわたる構文エラーを検出します。
+5. **実際のテストスイート** — `python -m pytest tests/ -q`（config、pipeline、MediaMTX 生成、CLI をカバーする 24 個のテスト）。
 
 `set -euo pipefail` は最初に失敗したステップでスクリプトを停止させます。
-4 つのステップすべてが成功した場合にのみ `== Build OK ==` を表示します。
+5 つのステップすべてが成功した場合にのみビルドは成功を報告します。
 
 ```bash
 ./run.sh
@@ -142,7 +146,28 @@ HYDRA-UMC-VISION-STREAMER/
 
 `.venv` 内のインタープリタを特定し（POSIX と Windows 両方の `.venv`
 ディレクトリ構造を処理）、`python -m hydra_umc_vision_streamer.main` を
-実行して名前・バージョン・役割を表示します。
+実行してすべての引数を転送します——素の呼び出しは名前・バージョン・役割
+を表示します。
+
+実際の例 —— カメラ設定を検証し、その GStreamer パイプラインを生成し、対応する MediaMTX リレー設定を生成する：
+
+```bash
+./run.sh config validate --config cameras.json
+# 2 camera(s) in cameras.json
+#   cam0: /dev/video0 1920x1080@30 MJPG
+#   cam1: /dev/video1 640x480@15 YUYV
+# config OK
+
+./run.sh config gst --config cameras.json --camera cam0
+# v4l2src device=/dev/video0 ! image/jpeg,width=1920,height=1080,framerate=30/1 ! jpegdec ! videoconvert ! tee name=t t. ! queue ! appsink name=cam0_hailo_sink t. ! queue ! rtspclientsink location=rtsp://localhost:8554/cam0
+
+./run.sh config mediamtx --config cameras.json
+# paths:
+#   cam0:
+#     source: publisher
+#   cam1:
+#     source: publisher
+```
 
 ```bat
 :: Windows - 手順は同じ、バッチ構文
@@ -161,17 +186,17 @@ run.bat
 
 ## 🚀 現在の状況と次のステップ
 
-**今日実現していること：** 検証済みのエントリポイントを持つ実際のインストール
-可能な Python パッケージ（実際に取得されたビルド/実行出力については
-[`CHANGELOG.md`](CHANGELOG.md) を参照）、そしてビルドに組み込まれた
-オドメーター式バージョンインクリメント。
+**今日実現していること：** 設定の検証、GStreamer パイプライン記述の生成、そして MediaMTX リレー設定の生成（`config.py`、`pipeline.py`、`mediamtx_config.py`、24 個のテスト）に加え、検証済みのエントリポイントを持つ実際のインストール
+可能な Python パッケージ、そしてビルドに組み込まれた
+オドメーター式バージョンインクリメント。実際に取得されたビルド/実行出力については
+[`CHANGELOG.md`](CHANGELOG.md) を参照してください。
 
-**まだ残っている作業（順不同、確定した期限なし）：**
+**まだ残っている作業（順不同、確定した期限なし、実際のハードウェアに阻まれている）：**
 
-* 実際の GStreamer パイプライン（キャプチャ、`Tee`、ISP 統合）。
-* 最大 8 台の USB 3.0 カメラからの V4L2 キャプチャと、ハードウェア ISP によるリサイズ/フォーマット変換。
+* 実際の GStreamer/PyGObject ランタイムと物理 V4L2 デバイスを通じて、生成されたパイプラインを実際に実行すること。
+* ハードウェア ISP によるリサイズ/フォーマット変換（実際の CM5 ISP が必要）。
 * [HYDRA-UMC-VISION-NODE](https://github.com/JuanenRac/HYDRA-UMC-VISION-NODE) が保持する Hailo-8 ランタイムへのゼロコピー受け渡し。
-* オプションの RTSP/WebRTC 出力とカメラごとの動的設定（露出、ゲイン、解像度）。
+* WebRTC 出力、およびカメラごとの露出/ゲイン制御（実際の V4L2 デバイスが必要）。
 
 ---
 

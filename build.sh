@@ -1,36 +1,73 @@
 #!/usr/bin/env bash
-# HYDRA-UMC-VISION-STREAMER - build.sh: venv + editable install + compile-check
+# =============================================================================
+# HYDRA-UMC-VISION-STREAMER - build.sh
 # Copyright (C) 2026 JuanenRac (Electro Hobby 3D) <electrohobby3d@gmail.com>
 # GPL-3.0 - see LICENSE
+# =============================================================================
+# Builds HYDRA-UMC-VISION-STREAMER: creates/activates a venv, installs the
+# project (editable, with dev extras), verifies it compiles/imports
+# cleanly, and runs the real test suite. Run this before run.sh.
 #
-# Bumps the odometer version, creates/updates the local venv, installs the
-# project (editable) with its dependencies, and compile-checks every source
-# file. Run this before run.sh whenever the source changes.
+# Usage:
+#   chmod +x build.sh   (one-time)
+#   ./build.sh
 set -euo pipefail
-python3 "$(dirname "$0")/bump_manifest_version.py" || exit 1
 cd "$(dirname "$0")"
 
-echo "== HYDRA-UMC-VISION-STREAMER :: build =="
+trap '[ -t 0 ] && read -r -p "Press Enter to close..." _' EXIT
 
-echo "-- Odometer version bump --"
-python3 bump_version.py 2>/dev/null || python bump_version.py
+echo
+echo " ==============================================================="
+echo "  H Y D R A - U M C - V I S I O N - S T R E A M E R  -  build"
+echo " ==============================================================="
+echo "  Per-camera config, GStreamer pipeline, and MediaMTX generation"
+echo "  Author:  JuanenRac (Electro Hobby 3D)"
+echo "  License: GPL-3.0 (see LICENSE.md)"
+echo " ==============================================================="
+echo
 
-echo "-- Creating/using virtual environment (.venv) --"
-if [ ! -d ".venv" ]; then
-  python3 -m venv .venv 2>/dev/null || python -m venv .venv
+echo "[1/5] Bumping version number (odometer bump, see bump_version.py)..."
+python3 bump_version.py || exit 1
+python3 "$(dirname "$0")/bump_manifest_version.py" --sync || exit 1
+echo "      Done."
+echo
+
+echo "[2/5] Creating/activating virtual environment..."
+if [ ! -d .venv ]; then
+    python3 -m venv .venv
 fi
-
-if [ -f ".venv/Scripts/python.exe" ]; then
-  VENV_PY=".venv/Scripts/python.exe"   # Windows venv layout
+# shellcheck disable=SC1091
+# venv layout differs by OS: bin/activate on Linux/macOS, Scripts/activate
+# on Windows (also true for a Windows Python venv used from Git Bash).
+if [ -f .venv/bin/activate ]; then
+    source .venv/bin/activate
+elif [ -f .venv/Scripts/activate ]; then
+    source .venv/Scripts/activate
 else
-  VENV_PY=".venv/bin/python"           # POSIX venv layout
+    echo "ERROR: could not find the venv activate script." >&2
+    exit 1
 fi
+echo "      Done."
+echo
 
-echo "-- Installing project + dependencies (editable) --"
-"$VENV_PY" -m pip install --quiet --upgrade pip
-"$VENV_PY" -m pip install --quiet -e .
+echo "[3/5] Installing project (editable, with dev extras) into the venv..."
+python -m pip install --upgrade pip >/dev/null
+python -m pip install -e ".[dev]"
+echo "      Done."
+echo
 
-echo "-- Compile-check every source file (python -m compileall) --"
-"$VENV_PY" -m compileall -q src
+echo "[4/5] Verifying the package compiles/imports without errors..."
+python -m compileall -q src
+python -c "import hydra_umc_vision_streamer; print('import OK')"
+echo "      Done."
+echo
 
-echo "== Build OK =="
+echo "[5/5] Running the real test suite (pytest)..."
+python -m pytest tests/ -q
+echo "      Done."
+echo
+
+echo " ==============================================================="
+echo "  Build complete. Run ./run.sh to execute the entry point."
+echo " ==============================================================="
+echo

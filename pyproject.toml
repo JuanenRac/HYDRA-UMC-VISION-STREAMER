@@ -1,16 +1,20 @@
 [project]
 name = "hydra-umc-vision-streamer"
-version = "0.0.2"
+version = "0.0.3"
 description = "Optimized GStreamer capture and pre-processing pipeline for up to 8x USB 3.0 camera streams feeding the Hailo-8 NPU on HYDRA-UMC-VISION-NODE."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "GPL-3.0-only" }
 authors = [{ name = "JuanenRac", email = "electrohobby3d@gmail.com" }]
-# No runtime dependencies yet - this is the skeleton stage (see
-# SONNET/HYDRA-UMC-VISION-STREAMER/mejoras_futuras.txt). Planned once real
-# business logic lands: PyGObject (GStreamer bindings), v4l2py (camera
-# control), pyyaml (per-camera exposure/gain configuration).
+# No runtime dependencies yet - the v0 config/pipeline-description layer
+# (config.py, pipeline.py, mediamtx_config.py) uses only the stdlib; its
+# MediaMTX YAML output is hand-rolled rather than pulling in PyYAML for a
+# shape this simple (see mediamtx_config.py). Still planned once the
+# runtime lands: PyGObject (GStreamer bindings), v4l2py (camera control).
 dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
 
 [project.scripts]
 hydra-umc-vision-streamer = "hydra_umc_vision_streamer.main:main"

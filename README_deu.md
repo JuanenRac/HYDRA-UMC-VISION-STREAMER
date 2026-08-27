@@ -13,7 +13,7 @@
   <img src="https://img.shields.io/badge/Framework-GStreamer-62B417.svg" alt="GStreamer">
   <img src="https://img.shields.io/badge/Plattform-Raspberry%20Pi%20CM5-BC1142.svg" alt="CM5">
   <img src="https://img.shields.io/badge/Schnittstelle-8x%20USB%203.0-blue.svg" alt="8x USB 3.0">
-  <img src="https://img.shields.io/badge/Stufe-Skelett-lightgrey.svg" alt="Skelettstufe">
+  <img src="https://img.shields.io/badge/Stufe-Funktional%20v0-green.svg" alt="Funktional v0">
 </p>
 
 ---
@@ -26,19 +26,20 @@ Dies ist eines der 4 Kind-Projekte von **[HYDRA-UMC-VISION-NODE](https://github.
 
 ### Kernpunkte
 
-* ⚡ **Zero-Copy-Pipeline (geplant):** Buffer-Übergabe zwischen V4L2 und HailoRT, entworfen, um unnötige Frame-Kopien zu vermeiden.
-* 🌈 **Hardware-Vorverarbeitung (geplant):** Echtzeit-Skalierung und Pixelformatkonvertierung über den ISP der Pi, wodurch Arbeit von der CPU genommen wird, die sonst pro Frame anfiele.
-* 📡 **RTSP/WebRTC-Unterstützung (geplant):** optionales latenzarmes Ausgangsstreaming für die Fernüberwachung, ohne die gesamte Erkennungspipeline zu durchlaufen.
-* 🛠️ **Dynamische Konfiguration (geplant):** Belichtungs-, Verstärkungs- und Auflösungssteuerung pro Kamera.
+* ✅ **Echtes v0 - Config-, Pipeline- und Relay-Generierung:** `config.py` validiert eine JSON-Konfiguration pro Kamera (Gerät, Auflösung, fps, Format); `pipeline.py` generiert die exakte GStreamer-Pipeline-Beschreibung für eine Kamera; `mediamtx_config.py` generiert die passende MediaMTX-`paths.yml`. Über `config validate`/`config gst`/`config mediamtx` unten verfügbar - kein GStreamer-Laufzeitsystem, V4L2 oder physische Kamera nötig, um es auszuführen oder zu testen.
+* 📡 **RTSP/WebRTC-Unterstützung (teilweise geplant):** der RTSP-Relay-Pfad (`rtspclientsink` → MediaMTX) ist entworfen und seine Konfiguration wird oben real generiert; ihn tatsächlich auszuführen benötigt das GStreamer-Laufzeitsystem, das diese Umgebung nicht hat. Die WebRTC-Ausgabe bleibt vollständig geplant.
+* ⚡ **Zero-Copy-Pipeline (geplant):** Buffer-Übergabe zwischen V4L2 und HailoRT, entworfen, um unnötige Frame-Kopien zu vermeiden. *(zukünftige Arbeit - benötigt das echte V4L2/HailoRT-Laufzeitsystem, das diese Umgebung nicht hat.)*
+* 🌈 **Hardware-Vorverarbeitung (geplant):** Echtzeit-Skalierung und Pixelformatkonvertierung über den ISP der Pi, wodurch Arbeit von der CPU genommen wird, die sonst pro Frame anfiele. *(zukünftige Arbeit, gleicher Grund.)*
+* 🛠️ **Dynamische Konfiguration:** Auflösung, Framerate und Pixelformat pro Kamera sind heute real und werden validiert (`config.py`); die Belichtungs-/Verstärkungssteuerung benötigt das echte V4L2-Gerät und ist zukünftige Arbeit.
 * 🧩 **Warum als eigenes Projekt:** Erfassungs-/ISP-Abstimmung ist eine andere Fähigkeit und eine andere Fehlerdomäne als Modellinferenz oder Sicherheitslogik - sie im eigenen Prozess zu halten bedeutet, dass ein Erfassungsfehler [HYDRA-UMC-SAFETY-ZONES](https://github.com/JuanenRac/HYDRA-UMC-SAFETY-ZONES) nicht lahmlegen kann, und beide können unabhängig entwickelt/getestet werden.
 
-**Ehrlichkeitscheck - was heute wirklich läuft:** Dieses Repository befindet sich in der Skelettphase. Der reale Einstiegspunkt (`src/hydra_umc_vision_streamer/main.py`) gibt den Projektnamen, seine installierte Version und eine einzeilige Rollenbeschreibung aus und beendet sich mit Code 0. Nichts von der oben beschriebenen GStreamer-Pipeline, V4L2-Erfassung, ISP-Integration oder Streaming-Logik existiert bereits im Code. Siehe [`CHANGELOG.md`](CHANGELOG.md) für genau das, was bisher geliefert wurde, und "Aktueller Status & Nächste Schritte" unten für das, was noch offen ist.
+**Ehrlichkeitscheck - was heute wirklich läuft:** die Konfigurationsvalidierung, die Generierung der GStreamer-Pipeline-Beschreibung, und die Generierung der MediaMTX-Relay-Konfiguration (`config.py`, `pipeline.py`, `mediamtx_config.py`) sind real und getestet (24 Tests). Nichts davon öffnet ein V4L2-Gerät, importiert GStreamer oder spricht mit einer physischen Kamera - die generierte Pipeline tatsächlich auszuführen benötigt dieses echte Laufzeitsystem und diese echte Hardware, die diese Umgebung nicht hat. Siehe [`CHANGELOG.md`](CHANGELOG.md) für genau das, was bisher geliefert wurde, und "Aktueller Status & Nächste Schritte" unten für das, was noch offen ist.
 
 ---
 
 ## 2. 🔄 GEPLANTE PIPELINE-ARCHITEKTUR
 
-Das Diagramm unten ist der Ziel-Datenfluss, auf den dieses Skelett hinarbeitet, keine heute lauffähige Pipeline.
+Das Diagramm unten ist der Ziel-Datenfluss, auf den dieses Projekt hinarbeitet - seine *Form* (welches Element welches speist, die `Tee`-Verzweigung) ist durch `pipeline.py` festgelegt und wird heute als reale `gst-launch-1.0`-Syntax generiert, aber nichts in diesem Diagramm läuft bereits: das benötigt das echte V4L2/GStreamer/Hailo-8-Laufzeitsystem und physische USB-Kameras.
 
 ```mermaid
 graph LR
@@ -61,10 +62,12 @@ CM5 + Hailo-8 ist handelsübliche Hardware ohne eigenes zu entwerfendes Board, a
 
 Das `Tee`-Element im obigen Diagramm ist die zentrale, bereits vor der Implementierung getroffene Designentscheidung: erfasste/vorverarbeitete Frames sollen gleichzeitig zu zwei Abnehmern verzweigen - dem Hailo-8-Inferenzpfad (der [HYDRA-UMC-VISION-NODE](https://github.com/JuanenRac/HYDRA-UMC-VISION-NODE) speist) und einem optionalen lokalen/RTSP-WebRTC-Stream zur menschlichen Überwachung - ohne dass der Überwachungspfad dem Inferenzpfad Latenz hinzufügt.
 
-### In diesem Skelett bereits getroffene Designentscheidungen
+### Bereits getroffene Designentscheidungen
 
 * **Die Version wird aus den Metadaten des installierten Pakets gelesen, nicht fest codiert** - `main.py` ruft `importlib.metadata.version("hydra-umc-vision-streamer")` statt einer zweiten `__version__`-Zeichenkette auf, sodass `bump_version.py` nur eine Stelle zu bearbeiten hat und beide nie auseinanderlaufen können.
 * **Der "Kilometerzähler"-Bump berührt automatisch nur `PATCH`/`MINOR`** - `bump_version.py` überträgt `PATCH` auf `MINOR` über 9 hinaus und `MINOR` auf `MAJOR` über 9 hinaus, erhöht aber nie `MAJOR` selbst; das ist eine bewusste menschliche Entscheidung, dieselbe Konvention wie `HYDRA-UMC-EDITOR-URDF/bump_version.py` und `HYDRA-UMC-SUITE/bump_version.py`.
+* **Das MediaMTX-YAML ist handgeschrieben, nicht auf PyYAML aufgebaut** - die Ausgabeform von `mediamtx_config.py` (eine flache `paths:`-Map, ein `source: publisher`-Eintrag pro Kamera) ist einfach und fest genug, dass eine echte Abhängigkeit noch nicht gerechtfertigt ist. Zu überdenken, falls die Konfiguration pro Kamera verschachtelte oder listenwertige Felder erhält.
+* **Pipeline und MediaMTX-Konfiguration müssen sich auf einen RTSP-Pfad pro Kamera einigen** - `rtsp_url_for()` ist die einzige Stelle, die ihn ableitet (aus dem Kameranamen), sodass `config gst` und `config mediamtx` nie uneinig darüber sein können, wo der Stream einer Kamera liegt.
 
 ---
 
@@ -73,13 +76,19 @@ Das `Tee`-Element im obigen Diagramm ist die zentrale, bereits vor der Implement
 ```text
 HYDRA-UMC-VISION-STREAMER/
 ├── src/                 # Quellcode (Paket hydra_umc_vision_streamer)
+│   └── hydra_umc_vision_streamer/
+│       ├── config.py           # Parsen/Validierung der Konfiguration pro Kamera
+│       ├── pipeline.py         # Generierung der GStreamer-Pipeline-Beschreibung
+│       ├── mediamtx_config.py  # Generierung der MediaMTX-paths.yml
+│       └── main.py             # CLI-Einstiegspunkt (nackter Aufruf + `config`)
+├── tests/               # Echte pytest-Suite (config, pipeline, mediamtx, CLI)
 ├── docs/                # Dokumentation und Tuning-Anleitungen
 ├── build/               # Build-Ausgabe (hier lebt auch das lokale .venv)
 ├── images/              # Medien und Diagramme
 ├── scripts/             # Hilfsskripte
 ├── pyproject.toml       # Paketmetadaten, Abhängigkeiten, Kilometerzähler-Version
 ├── bump_version.py      # Kilometerzähler-artiger Versions-Bump (build.sh/.bat)
-├── build.sh / build.bat # venv + editierbare Installation + Compile-Check
+├── build.sh / build.bat # venv + editierbare Installation + Compile-Check + Tests
 ├── run.sh / run.bat     # Führt den Einstiegspunkt aus dem lokalen venv aus
 └── CHANGELOG.md         # Versions-für-Versions-Historie (Kilometerzähler-Schema, ohne Daten)
 ```
@@ -105,16 +114,37 @@ Kein `hardware/`-, `firmware/`-, `os/`- oder `models/`-Ordner - siehe "Erweitert
 
 1. **Kilometerzähler-Versions-Bump** - führt `bump_version.py` aus, das `PATCH` in `pyproject.toml` bei jedem Build erhöht (mit Übertrag auf `MINOR`/`MAJOR` nach obiger Regel).
 2. **Virtuelle Umgebung** - erstellt `.venv/`, falls nicht vorhanden; verwendet es sonst weiter.
-3. **Editierbare Installation** - `pip install -e .`, sodass Änderungen unter `src/` sofort wirken, und registriert den Konsolen-Einstiegspunkt `hydra-umc-vision-streamer`.
+3. **Editierbare Installation** - `pip install -e ".[dev]"`, sodass Änderungen unter `src/` sofort wirken, installiert `pytest`, und registriert den Konsolen-Einstiegspunkt `hydra-umc-vision-streamer`.
 4. **Compile-Check** - `python -m compileall -q src` kompiliert jede Datei unter `src/` zu Bytecode und findet so Syntaxfehler im gesamten Paket.
+5. **Echte Test-Suite** - `python -m pytest tests/ -q` (24 Tests, die config, pipeline, MediaMTX-Generierung und die CLI abdecken).
 
-`set -euo pipefail` stoppt das Skript beim ersten fehlschlagenden Schritt; `== Build OK ==` wird nur ausgegeben, wenn alle 4 Schritte erfolgreich waren.
+`set -euo pipefail` stoppt das Skript beim ersten fehlschlagenden Schritt; der Build meldet Erfolg nur, wenn alle 5 Schritte erfolgreich waren.
 
 ```bash
 ./run.sh
 ```
 
-Sucht den Interpreter innerhalb von `.venv` (unterstützt beide Layouts, POSIX und Windows) und führt `python -m hydra_umc_vision_streamer.main` aus, das Name + Version + Rolle ausgibt.
+Sucht den Interpreter innerhalb von `.venv` (unterstützt beide Layouts, POSIX und Windows) und führt `python -m hydra_umc_vision_streamer.main` aus, wobei alle Argumente weitergereicht werden - der nackte Aufruf gibt Name + Version + Rolle aus.
+
+Echtes Beispiel - eine Kamerakonfiguration validieren, ihre GStreamer-Pipeline generieren, und die passende MediaMTX-Relay-Konfiguration generieren:
+
+```bash
+./run.sh config validate --config cameras.json
+# 2 camera(s) in cameras.json
+#   cam0: /dev/video0 1920x1080@30 MJPG
+#   cam1: /dev/video1 640x480@15 YUYV
+# config OK
+
+./run.sh config gst --config cameras.json --camera cam0
+# v4l2src device=/dev/video0 ! image/jpeg,width=1920,height=1080,framerate=30/1 ! jpegdec ! videoconvert ! tee name=t t. ! queue ! appsink name=cam0_hailo_sink t. ! queue ! rtspclientsink location=rtsp://localhost:8554/cam0
+
+./run.sh config mediamtx --config cameras.json
+# paths:
+#   cam0:
+#     source: publisher
+#   cam1:
+#     source: publisher
+```
 
 ```bat
 :: Windows - gleiche Schritte, Batch-Syntax
@@ -133,14 +163,14 @@ run.bat
 
 ## 🚀 Aktueller Status & Nächste Schritte
 
-**Was heute funktioniert:** ein echtes, installierbares Python-Paket mit verifiziertem Einstiegspunkt (siehe [`CHANGELOG.md`](CHANGELOG.md) für die erfasste Build-/Run-Ausgabe) und ein in den Build integrierter Kilometerzähler-Versions-Bump.
+**Was heute funktioniert:** die Konfigurationsvalidierung, die Generierung der GStreamer-Pipeline-Beschreibung, und die Generierung der MediaMTX-Relay-Konfiguration (`config.py`, `pipeline.py`, `mediamtx_config.py`, 24 Tests), plus ein echtes, installierbares Python-Paket mit verifiziertem Einstiegspunkt und ein in den Build integrierter Kilometerzähler-Versions-Bump. Siehe [`CHANGELOG.md`](CHANGELOG.md) für die erfasste Build-/Run-Ausgabe.
 
-**Was noch offen ist, ohne bestimmte Reihenfolge und ohne verbindlichen Zeitplan:**
+**Was noch offen ist, ohne bestimmte Reihenfolge, ohne verbindlichen Zeitplan, und blockiert durch echte Hardware:**
 
-* Die echte GStreamer-Pipeline (Erfassung, `Tee`, ISP-Integration).
-* V4L2-Erfassung von bis zu 8 USB-3.0-Kameras sowie Hardware-ISP-Skalierung/Formatkonvertierung.
+* Die generierte Pipeline tatsächlich über ein echtes GStreamer/PyGObject-Laufzeitsystem und ein physisches V4L2-Gerät auszuführen.
+* Hardware-ISP-Skalierung/Formatkonvertierung (benötigt den echten CM5-ISP).
 * Die Zero-Copy-Übergabe an die von [HYDRA-UMC-VISION-NODE](https://github.com/JuanenRac/HYDRA-UMC-VISION-NODE) besessene Hailo-8-Laufzeit.
-* Optionale RTSP/WebRTC-Ausgabe und dynamische Konfiguration pro Kamera (Belichtung, Verstärkung, Auflösung).
+* WebRTC-Ausgabe, und Belichtungs-/Verstärkungssteuerung pro Kamera (benötigt das echte V4L2-Gerät).
 
 ---
 

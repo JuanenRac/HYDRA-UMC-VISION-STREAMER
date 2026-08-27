@@ -1,1 +1,0 @@
-hydra_umc_vision_streamer

@@ -14,5 +14,5 @@ if exist ".venv\Scripts\python.exe" (
     exit /b 1
 )
 
-"%VENV_PY%" -m hydra_umc_vision_streamer.main
+"%VENV_PY%" -m hydra_umc_vision_streamer.main %*
 exit /b %errorlevel%
