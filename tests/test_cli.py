@@ -71,3 +71,36 @@ def test_config_mediamtx_to_file(tmp_path):
     assert result.returncode == 0
     assert out.exists()
     assert "source: publisher" in out.read_text(encoding="utf-8")
+
+
+def test_stream_simulate_default_run_stays_within_bound():
+    result = run_cli("stream", "simulate")
+    assert result.returncode == 0
+    assert "Max buffer size observed: 8 (must never exceed 8)" in result.stdout
+    assert "Frames dropped by backpressure:" in result.stdout
+
+
+def test_stream_simulate_reports_a_real_dropped_frame_count_with_a_slow_consumer():
+    # A tiny buffer and a very slow consumer (rate=1000, i.e. essentially
+    # never pops during a 500-frame run) must drop real frames.
+    result = run_cli(
+        "stream", "simulate", "--buffer-size", "4", "--frames", "500", "--consumer-rate", "1000",
+    )
+    assert result.returncode == 0
+    assert "Max buffer size observed: 4 (must never exceed 4)" in result.stdout
+    # Roughly frames - buffer_size frames must have been dropped (minus
+    # the one real pop at i == 0).
+    assert "Frames dropped by backpressure: 495" in result.stdout
+
+
+def test_stream_simulate_prints_the_real_reconnect_schedule():
+    # max_reconnect_attempts=3 means attempts 1 and 2 each produce a
+    # real scheduled delay; the 3rd call exhausts the budget and gives
+    # up honestly instead of retrying forever.
+    result = run_cli(
+        "stream", "simulate", "--frames", "100", "--max-reconnect-attempts", "3",
+        "--base-delay", "1.0", "--max-delay", "100.0",
+    )
+    assert result.returncode == 0
+    assert "Reconnect backoff schedule (s): [1.0, 2.0]" in result.stdout
+    assert "Final connection state: given_up" in result.stdout

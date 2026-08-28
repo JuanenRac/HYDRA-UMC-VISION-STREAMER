@@ -33,13 +33,14 @@ USB 3.0 カメラストリームを同時に低レベルでキャプチャ、前
 ### 要点
 
 * ✅ **実装済み v0 —— 設定・パイプライン・リレー生成：** `config.py` はカメラごとの JSON 設定（デバイス、解像度、fps、フォーマット）を検証し、`pipeline.py` はあるカメラの実際の GStreamer パイプライン記述を生成し、`mediamtx_config.py` は対応する MediaMTX の `paths.yml` を生成します。下記の `config validate`/`config gst`/`config mediamtx` から利用可能で、実行にもテストにも GStreamer ランタイム、V4L2、物理カメラは不要です。
+* 🔁 **実装済み v0 —— 有界バッファリングと再接続：** `buffer.py` の `FrameBuffer` は満杯になると最も古い項目(最新のものではない)を破棄する固定容量のキューです——遅い消費者がこのプロセス自体のメモリを無制限に増加させることを決して許さない、ライブリレーが必要とする実際のバックプレッシャーポリシーです。`reconnect.py` の `ConnectionTracker` は、切断されたカメラ/リレーリンクのための実際の、決定論的な指数バックオフ再接続ポリシーです。下記の `stream simulate` から利用可能で、GStreamer や物理カメラなしで完全にテスト可能です。
 * 📡 **RTSP/WebRTC サポート（一部計画中）：** RTSP リレーパス（`rtspclientsink` → MediaMTX）は設計済みで、その設定は上記で実際に生成されています。実際に実行するにはこの環境にない GStreamer ランタイムが必要です。WebRTC 出力は引き続き完全に計画段階です。
 * ⚡ **ゼロコピーパイプライン（計画中）：** 不要なフレームコピーを避けるよう設計された、V4L2 と HailoRT の間のバッファ受け渡し。*（将来の作業——この環境にはまだない実際の V4L2/HailoRT ランタイムが必要です。）*
 * 🌈 **ハードウェア前処理（計画中）：** Pi の ISP を使用したリアルタイムのリサイズとピクセルフォーマット変換により、本来フレームごとに CPU が担うはずの作業をオフロードします。*（同じ理由で将来の作業です。）*
 * 🛠️ **動的設定：** カメラごとの解像度、フレームレート、ピクセルフォーマットは今日すでに実装され検証されています（`config.py`）。露出/ゲイン制御は実際の V4L2 デバイスが必要で、将来の作業です。
 * 🧩 **独立したプロジェクトとして存在する理由：** キャプチャ/ISP チューニングは、モデル推論や安全ロジックとは異なるスキルと異なる障害領域を持ちます——独自のプロセスとして保つことで、キャプチャ側のバグが [HYDRA-UMC-SAFETY-ZONES](https://github.com/JuanenRac/HYDRA-UMC-SAFETY-ZONES) を巻き込むことがなくなり、両者を独立して開発・テストできます。
 
-**正直な現状確認 —— 今日実際に動くもの：** 設定の検証、GStreamer パイプライン記述の生成、そして MediaMTX リレー設定の生成（`config.py`、`pipeline.py`、`mediamtx_config.py`）は実装され、テストされています（24 個のテスト）。これらのいずれも V4L2 デバイスを開いたり、GStreamer をインポートしたり、物理カメラと通信したりはしません——生成されたパイプラインを実際に実行するには、この環境にない実際のランタイムとハードウェアが必要です。実際に出荷済みの内容は [`CHANGELOG.md`](CHANGELOG.md)
+**正直な現状確認 —— 今日実際に動くもの：** 設定の検証、GStreamer パイプライン記述の生成、MediaMTX リレー設定の生成、そして実際のバッファ/再接続ポリシー（`config.py`、`pipeline.py`、`mediamtx_config.py`、`buffer.py`、`reconnect.py`）は実装され、テストされています（45 個のテスト）。これらのいずれも V4L2 デバイスを開いたり、GStreamer をインポートしたり、物理カメラと通信したりはしません——生成されたパイプラインを実際に実行するには、この環境にない実際のランタイムとハードウェアが必要です。実際に出荷済みの内容は [`CHANGELOG.md`](CHANGELOG.md)
 を、まだ残っている作業は下記の「現在の状況と次のステップ」セクションを
 参照してください。
 
@@ -85,6 +86,8 @@ STM32H745/STM32G474 基板とは異なり、CM5 + Hailo-8 は市販のハード�
 * **オドメーター式のインクリメントは自動的に `PATCH`/`MINOR` にのみ触れます** —— `bump_version.py` は `PATCH` が 9 を超えると `MINOR` に、`MINOR` が 9 を超えると `MAJOR` に繰り上がりますが、`MAJOR` 自体を自動で増加させることは決してありません。これは意図的な人間による決定であり、`HYDRA-UMC-EDITOR-URDF/bump_version.py` および `HYDRA-UMC-SUITE/bump_version.py` と同じ慣例です。
 * **MediaMTX の YAML は手書きであり、PyYAML の上には構築されていません** —— `mediamtx_config.py` の出力形態（フラットな `paths:` マップ、カメラごとに 1 つの `source: publisher` エントリ）は十分にシンプルで固定されており、実際の依存関係はまだ正当化されません。カメラごとの設定にネストされたフィールドやリスト値のフィールドが増えた場合は、その時点で見直します。
 * **パイプラインと MediaMTX 設定は、カメラごとに 1 つの RTSP パスで一致していなければなりません** —— `rtsp_url_for()` はそれを（カメラ名から）導出する唯一の場所であるため、`config gst` と `config mediamtx` があるカメラのストリームがどこにあるかについて食い違うことは決してありません。
+* **`FrameBuffer` は満杯になると最も古い項目を破棄し、最新のものは破棄しません。** ライブ映像には、増え続ける古いフレームの滞留分は何の役にも立ちません——常に有用なのは最も新しいフレームです。代わりにプロデューサーをブロックするキューは実際のキャプチャスレッド自体を危険にさらし、ただ単純に増え続けるキューは、このゲートが防ぐために存在する無制限メモリの失敗をまさに引き起こしてしまいます。
+* **`reconnect.py` は決して自分でスリープしたり、実際のソケットに触れたりしません。** `ConnectionTracker` は状態を追跡し、呼び出し側がどれだけ待つべきかを返すだけです——この分離こそが、`max_attempts` に達した後に正直に諦めることを含む、バックオフスケジュール全体をテストの中で正確に再現可能にしているものです。実際の時計も実際のカメラリンクも関与しません。
 
 ---
 
@@ -96,9 +99,11 @@ HYDRA-UMC-VISION-STREAMER/
 │   └── hydra_umc_vision_streamer/
 │       ├── config.py           # カメラごとの設定の解析/検証
 │       ├── pipeline.py         # GStreamer パイプライン記述の生成
+│       ├── buffer.py           # 実際の有界バッファ（drop-oldest バックプレッシャー）
+│       ├── reconnect.py        # 実際の決定論的な再接続/バックオフポリシー
 │       ├── mediamtx_config.py  # MediaMTX paths.yml の生成
-│       └── main.py             # CLI エントリポイント（素の呼び出し + `config`）
-├── tests/               # 実際の pytest スイート（config、pipeline、mediamtx、CLI）
+│       └── main.py             # CLI エントリポイント（素の呼び出し + `config`/`stream`）
+├── tests/               # 実際の pytest スイート（config、pipeline、mediamtx、バッファ/再接続、CLI）
 ├── docs/                # ドキュメントとチューニングガイド
 ├── build/               # ビルド出力（ローカルの .venv もここに存在）
 ├── images/              # メディアと図表
@@ -135,7 +140,7 @@ HYDRA-UMC-VISION-STREAMER/
 2. **仮想環境** — `.venv/` が存在しない場合は作成し、存在する場合は再利用します。
 3. **Editable インストール** — `pip install -e ".[dev]"` により `src/` 下の変更が即座に反映され、`pytest` がインストールされ、`hydra-umc-vision-streamer` コンソールエントリポイントが登録されます。
 4. **コンパイルチェック** — `python -m compileall -q src` が `src/` 下の各ファイルをバイトコンパイルし、あるファイルが `main.py` から一度もインポートされない場合でも、エコシステム全体にわたる構文エラーを検出します。
-5. **実際のテストスイート** — `python -m pytest tests/ -q`（config、pipeline、MediaMTX 生成、CLI をカバーする 24 個のテスト）。
+5. **実際のテストスイート** — `python -m pytest tests/ -q`（config、pipeline、MediaMTX 生成、バッファ/再接続ポリシー、CLI をカバーする 45 個のテスト）。
 
 `set -euo pipefail` は最初に失敗したステップでスクリプトを停止させます。
 5 つのステップすべてが成功した場合にのみビルドは成功を報告します。
@@ -169,6 +174,20 @@ HYDRA-UMC-VISION-STREAMER/
 #     source: publisher
 ```
 
+実際の例 —— 有界バッファに対する遅い消費者をシミュレートし、実際の
+再接続ポリシーを通して切断された接続を処理する：
+
+```bash
+./run.sh stream simulate --buffer-size 8 --frames 1000 --consumer-rate 1000
+# Pushed 1000 frame(s) through a buffer capped at 8
+# Max buffer size observed: 8 (must never exceed 8)
+# Frames dropped by backpressure: 972
+#
+# Simulated disconnect at frame 500
+# Reconnect backoff schedule (s): [0.5, 1.0, 2.0, 4.0]
+# Final connection state: given_up
+```
+
 ```bat
 :: Windows - 手順は同じ、バッチ構文
 build.bat
@@ -186,7 +205,7 @@ run.bat
 
 ## 🚀 現在の状況と次のステップ
 
-**今日実現していること：** 設定の検証、GStreamer パイプライン記述の生成、そして MediaMTX リレー設定の生成（`config.py`、`pipeline.py`、`mediamtx_config.py`、24 個のテスト）に加え、検証済みのエントリポイントを持つ実際のインストール
+**今日実現していること：** 設定の検証、GStreamer パイプライン記述の生成、そして MediaMTX リレー設定の生成（`config.py`、`pipeline.py`、`mediamtx_config.py`）に加え、実際の、証明可能な有界バッファと実際の決定論的な再接続ポリシー（`buffer.py`、`reconnect.py`、`stream simulate`）、合計 45 個のテスト、さらに検証済みのエントリポイントを持つ実際のインストール
 可能な Python パッケージ、そしてビルドに組み込まれた
 オドメーター式バージョンインクリメント。実際に取得されたビルド/実行出力については
 [`CHANGELOG.md`](CHANGELOG.md) を参照してください。

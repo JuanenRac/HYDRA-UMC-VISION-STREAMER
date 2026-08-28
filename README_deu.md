@@ -27,13 +27,14 @@ Dies ist eines der 4 Kind-Projekte von **[HYDRA-UMC-VISION-NODE](https://github.
 ### Kernpunkte
 
 * ✅ **Echtes v0 - Config-, Pipeline- und Relay-Generierung:** `config.py` validiert eine JSON-Konfiguration pro Kamera (Gerät, Auflösung, fps, Format); `pipeline.py` generiert die exakte GStreamer-Pipeline-Beschreibung für eine Kamera; `mediamtx_config.py` generiert die passende MediaMTX-`paths.yml`. Über `config validate`/`config gst`/`config mediamtx` unten verfügbar - kein GStreamer-Laufzeitsystem, V4L2 oder physische Kamera nötig, um es auszuführen oder zu testen.
+* 🔁 **Echtes v0 - Begrenzte Pufferung und Wiederverbindung:** `FrameBuffer` in `buffer.py` ist eine Warteschlange fester Kapazität, die beim Vollsein das ÄLTESTE Element verwirft (nie das neueste) - die echte Backpressure-Politik, die ein Live-Relay braucht, damit ein langsamer Konsument den Speicher dieses Prozesses niemals unbegrenzt wachsen lassen kann. `ConnectionTracker` in `reconnect.py` ist eine echte, deterministische Wiederverbindungspolitik mit exponentiellem Backoff für eine abgebrochene Kamera-/Relay-Verbindung. Über `stream simulate` unten verfügbar - vollständig testbar ohne GStreamer oder physische Kamera.
 * 📡 **RTSP/WebRTC-Unterstützung (teilweise geplant):** der RTSP-Relay-Pfad (`rtspclientsink` → MediaMTX) ist entworfen und seine Konfiguration wird oben real generiert; ihn tatsächlich auszuführen benötigt das GStreamer-Laufzeitsystem, das diese Umgebung nicht hat. Die WebRTC-Ausgabe bleibt vollständig geplant.
 * ⚡ **Zero-Copy-Pipeline (geplant):** Buffer-Übergabe zwischen V4L2 und HailoRT, entworfen, um unnötige Frame-Kopien zu vermeiden. *(zukünftige Arbeit - benötigt das echte V4L2/HailoRT-Laufzeitsystem, das diese Umgebung nicht hat.)*
 * 🌈 **Hardware-Vorverarbeitung (geplant):** Echtzeit-Skalierung und Pixelformatkonvertierung über den ISP der Pi, wodurch Arbeit von der CPU genommen wird, die sonst pro Frame anfiele. *(zukünftige Arbeit, gleicher Grund.)*
 * 🛠️ **Dynamische Konfiguration:** Auflösung, Framerate und Pixelformat pro Kamera sind heute real und werden validiert (`config.py`); die Belichtungs-/Verstärkungssteuerung benötigt das echte V4L2-Gerät und ist zukünftige Arbeit.
 * 🧩 **Warum als eigenes Projekt:** Erfassungs-/ISP-Abstimmung ist eine andere Fähigkeit und eine andere Fehlerdomäne als Modellinferenz oder Sicherheitslogik - sie im eigenen Prozess zu halten bedeutet, dass ein Erfassungsfehler [HYDRA-UMC-SAFETY-ZONES](https://github.com/JuanenRac/HYDRA-UMC-SAFETY-ZONES) nicht lahmlegen kann, und beide können unabhängig entwickelt/getestet werden.
 
-**Ehrlichkeitscheck - was heute wirklich läuft:** die Konfigurationsvalidierung, die Generierung der GStreamer-Pipeline-Beschreibung, und die Generierung der MediaMTX-Relay-Konfiguration (`config.py`, `pipeline.py`, `mediamtx_config.py`) sind real und getestet (24 Tests). Nichts davon öffnet ein V4L2-Gerät, importiert GStreamer oder spricht mit einer physischen Kamera - die generierte Pipeline tatsächlich auszuführen benötigt dieses echte Laufzeitsystem und diese echte Hardware, die diese Umgebung nicht hat. Siehe [`CHANGELOG.md`](CHANGELOG.md) für genau das, was bisher geliefert wurde, und "Aktueller Status & Nächste Schritte" unten für das, was noch offen ist.
+**Ehrlichkeitscheck - was heute wirklich läuft:** die Konfigurationsvalidierung, die Generierung der GStreamer-Pipeline-Beschreibung, die Generierung der MediaMTX-Relay-Konfiguration, und die echte Puffer-/Wiederverbindungspolitik (`config.py`, `pipeline.py`, `mediamtx_config.py`, `buffer.py`, `reconnect.py`) sind real und getestet (45 Tests). Nichts davon öffnet ein V4L2-Gerät, importiert GStreamer oder spricht mit einer physischen Kamera - die generierte Pipeline tatsächlich auszuführen benötigt dieses echte Laufzeitsystem und diese echte Hardware, die diese Umgebung nicht hat. Siehe [`CHANGELOG.md`](CHANGELOG.md) für genau das, was bisher geliefert wurde, und "Aktueller Status & Nächste Schritte" unten für das, was noch offen ist.
 
 ---
 
@@ -68,6 +69,8 @@ Das `Tee`-Element im obigen Diagramm ist die zentrale, bereits vor der Implement
 * **Der "Kilometerzähler"-Bump berührt automatisch nur `PATCH`/`MINOR`** - `bump_version.py` überträgt `PATCH` auf `MINOR` über 9 hinaus und `MINOR` auf `MAJOR` über 9 hinaus, erhöht aber nie `MAJOR` selbst; das ist eine bewusste menschliche Entscheidung, dieselbe Konvention wie `HYDRA-UMC-EDITOR-URDF/bump_version.py` und `HYDRA-UMC-SUITE/bump_version.py`.
 * **Das MediaMTX-YAML ist handgeschrieben, nicht auf PyYAML aufgebaut** - die Ausgabeform von `mediamtx_config.py` (eine flache `paths:`-Map, ein `source: publisher`-Eintrag pro Kamera) ist einfach und fest genug, dass eine echte Abhängigkeit noch nicht gerechtfertigt ist. Zu überdenken, falls die Konfiguration pro Kamera verschachtelte oder listenwertige Felder erhält.
 * **Pipeline und MediaMTX-Konfiguration müssen sich auf einen RTSP-Pfad pro Kamera einigen** - `rtsp_url_for()` ist die einzige Stelle, die ihn ableitet (aus dem Kameranamen), sodass `config gst` und `config mediamtx` nie uneinig darüber sein können, wo der Stream einer Kamera liegt.
+* **`FrameBuffer` verwirft das älteste Element, nicht das neueste, wenn voll.** Live-Video hat keinerlei Nutzen für einen wachsenden Rückstand veralteter Frames - das frischeste Frame ist immer das nützliche. Eine Warteschlange, die stattdessen Produzenten blockieren würde, würde den echten Erfassungs-Thread selbst gefährden, und eine Warteschlange, die einfach weiterwächst, würde genau das unbegrenzte Speicherversagen riskieren, das dieses Gate verhindern soll.
+* **`reconnect.py` schläft nie und berührt nie selbst einen echten Socket.** `ConnectionTracker` verfolgt nur den Zustand und gibt zurück, wie lange ein Aufrufer warten soll - diese Trennung macht den gesamten Backoff-Zeitplan (einschließlich des ehrlichen Aufgebens nach `max_attempts`) in einem Test exakt reproduzierbar, ohne echte Uhr oder echte Kameraverbindung.
 
 ---
 
@@ -79,9 +82,11 @@ HYDRA-UMC-VISION-STREAMER/
 │   └── hydra_umc_vision_streamer/
 │       ├── config.py           # Parsen/Validierung der Konfiguration pro Kamera
 │       ├── pipeline.py         # Generierung der GStreamer-Pipeline-Beschreibung
+│       ├── buffer.py           # Echter begrenzter Puffer (drop-oldest Backpressure)
+│       ├── reconnect.py        # Echte deterministische Wiederverbindungs-/Backoff-Politik
 │       ├── mediamtx_config.py  # Generierung der MediaMTX-paths.yml
-│       └── main.py             # CLI-Einstiegspunkt (nackter Aufruf + `config`)
-├── tests/               # Echte pytest-Suite (config, pipeline, mediamtx, CLI)
+│       └── main.py             # CLI-Einstiegspunkt (nackter Aufruf + `config`/`stream`)
+├── tests/               # Echte pytest-Suite (config, pipeline, mediamtx, Puffer/Wiederverbindung, CLI)
 ├── docs/                # Dokumentation und Tuning-Anleitungen
 ├── build/               # Build-Ausgabe (hier lebt auch das lokale .venv)
 ├── images/              # Medien und Diagramme
@@ -116,7 +121,7 @@ Kein `hardware/`-, `firmware/`-, `os/`- oder `models/`-Ordner - siehe "Erweitert
 2. **Virtuelle Umgebung** - erstellt `.venv/`, falls nicht vorhanden; verwendet es sonst weiter.
 3. **Editierbare Installation** - `pip install -e ".[dev]"`, sodass Änderungen unter `src/` sofort wirken, installiert `pytest`, und registriert den Konsolen-Einstiegspunkt `hydra-umc-vision-streamer`.
 4. **Compile-Check** - `python -m compileall -q src` kompiliert jede Datei unter `src/` zu Bytecode und findet so Syntaxfehler im gesamten Paket.
-5. **Echte Test-Suite** - `python -m pytest tests/ -q` (24 Tests, die config, pipeline, MediaMTX-Generierung und die CLI abdecken).
+5. **Echte Test-Suite** - `python -m pytest tests/ -q` (45 Tests, die config, pipeline, MediaMTX-Generierung, die Puffer-/Wiederverbindungspolitik und die CLI abdecken).
 
 `set -euo pipefail` stoppt das Skript beim ersten fehlschlagenden Schritt; der Build meldet Erfolg nur, wenn alle 5 Schritte erfolgreich waren.
 
@@ -146,6 +151,19 @@ Echtes Beispiel - eine Kamerakonfiguration validieren, ihre GStreamer-Pipeline g
 #     source: publisher
 ```
 
+Echtes Beispiel - simuliert einen langsamen Konsumenten gegen einen begrenzten Puffer, und eine abgebrochene Verbindung, die durch die echte Wiederverbindungspolitik geführt wird:
+
+```bash
+./run.sh stream simulate --buffer-size 8 --frames 1000 --consumer-rate 1000
+# Pushed 1000 frame(s) through a buffer capped at 8
+# Max buffer size observed: 8 (must never exceed 8)
+# Frames dropped by backpressure: 972
+#
+# Simulated disconnect at frame 500
+# Reconnect backoff schedule (s): [0.5, 1.0, 2.0, 4.0]
+# Final connection state: given_up
+```
+
 ```bat
 :: Windows - gleiche Schritte, Batch-Syntax
 build.bat
@@ -163,7 +181,7 @@ run.bat
 
 ## 🚀 Aktueller Status & Nächste Schritte
 
-**Was heute funktioniert:** die Konfigurationsvalidierung, die Generierung der GStreamer-Pipeline-Beschreibung, und die Generierung der MediaMTX-Relay-Konfiguration (`config.py`, `pipeline.py`, `mediamtx_config.py`, 24 Tests), plus ein echtes, installierbares Python-Paket mit verifiziertem Einstiegspunkt und ein in den Build integrierter Kilometerzähler-Versions-Bump. Siehe [`CHANGELOG.md`](CHANGELOG.md) für die erfasste Build-/Run-Ausgabe.
+**Was heute funktioniert:** die Konfigurationsvalidierung, die Generierung der GStreamer-Pipeline-Beschreibung, und die Generierung der MediaMTX-Relay-Konfiguration (`config.py`, `pipeline.py`, `mediamtx_config.py`), plus ein echter, nachweislich begrenzter Puffer und eine echte deterministische Wiederverbindungspolitik (`buffer.py`, `reconnect.py`, `stream simulate`), 45 Tests insgesamt, plus ein echtes, installierbares Python-Paket mit verifiziertem Einstiegspunkt und ein in den Build integrierter Kilometerzähler-Versions-Bump. Siehe [`CHANGELOG.md`](CHANGELOG.md) für die erfasste Build-/Run-Ausgabe.
 
 **Was noch offen ist, ohne bestimmte Reihenfolge, ohne verbindlichen Zeitplan, und blockiert durch echte Hardware:**
 

@@ -30,13 +30,14 @@
 ### 关键要点
 
 * ✅ **真实 v0 —— 配置、流水线与中继生成：** `config.py` 校验逐摄像头的 JSON 配置（设备、分辨率、fps、格式）；`pipeline.py` 为一台摄像头生成真实的 GStreamer 流水线描述；`mediamtx_config.py` 生成对应的 MediaMTX `paths.yml`。通过下方的 `config validate`/`config gst`/`config mediamtx` 暴露——运行或测试都不需要 GStreamer 运行时、V4L2 或物理摄像头。
+* 🔁 **真实 v0 —— 有界缓冲与重连：** `buffer.py` 的 `FrameBuffer` 是一个固定容量的队列，满了之后会丢弃最旧的（而不是最新的）条目——这是一个实时中继所需要的真实背压策略，能确保一个慢速消费者永远不会让本进程的内存无限增长。`reconnect.py` 的 `ConnectionTracker` 是针对断开的摄像头/中继链路的真实的、确定性的指数退避重连策略。通过下方的 `stream simulate` 暴露——完全无需 GStreamer 或物理摄像头即可测试。
 * 📡 **RTSP/WebRTC 支持（部分计划中）：** RTSP 中继路径（`rtspclientsink` → MediaMTX）已经设计完成，其配置在上方已真实生成；真正运行它需要本环境不具备的 GStreamer 运行时。WebRTC 输出仍完全处于计划阶段。
 * ⚡ **零拷贝流水线（计划中）：** 设计 V4L2 与 HailoRT 之间的缓冲区交接，以避免不必要的帧拷贝。*（未来工作——需要本环境尚不具备的真实 V4L2/HailoRT 运行时。）*
 * 🌈 **硬件预处理（计划中）：** 使用树莓派的 ISP 进行实时缩放和像素格式转换，卸载原本每帧都需 CPU 承担的工作。*（未来工作，原因相同。）*
 * 🛠️ **动态配置：** 逐摄像头的分辨率、帧率和像素格式今天已经真实存在并会被校验（`config.py`）；曝光/增益控制需要真实的 V4L2 设备，属于未来工作。
 * 🧩 **为何作为独立项目存在：** 捕获/ISP 调优所需的技能和故障域与模型推理或安全逻辑不同——将其保持在独立进程中，意味着一个捕获方面的漏洞不会波及 [HYDRA-UMC-SAFETY-ZONES](https://github.com/JuanenRac/HYDRA-UMC-SAFETY-ZONES)，并且两者可以独立开发/测试。
 
-**诚实说明——今天实际运行的内容：** 配置校验、GStreamer 流水线描述生成、以及 MediaMTX 中继配置生成（`config.py`、`pipeline.py`、`mediamtx_config.py`）都是真实的并已经过测试（24 个测试）。其中没有任何一处会打开 V4L2 设备、导入 GStreamer，或与物理摄像头通信——真正运行生成的流水线需要本环境不具备的真实运行时和硬件。具体已交付内容请参见
+**诚实说明——今天实际运行的内容：** 配置校验、GStreamer 流水线描述生成、以及 MediaMTX 中继配置生成（`config.py`、`pipeline.py`、`mediamtx_config.py`、`buffer.py`、`reconnect.py`）都是真实的并已经过测试（45 个测试）。其中没有任何一处会打开 V4L2 设备、导入 GStreamer，或与物理摄像头通信——真正运行生成的流水线需要本环境不具备的真实运行时和硬件。具体已交付内容请参见
 [`CHANGELOG.md`](CHANGELOG.md)，尚待完成的内容请参见下方"当前状态与
 后续步骤"章节。
 
@@ -80,6 +81,8 @@ STM32H745/STM32G474 板卡不同，CM5 + Hailo-8 是现成硬件，没有需要�
 * **里程表式递增只自动触及 `PATCH`/`MINOR`** —— `bump_version.py` 在 `PATCH` 超过 9 时进位到 `MINOR`，`MINOR` 超过 9 时进位到 `MAJOR`，但从不自行递增 `MAJOR`；这是一个刻意的人为决策，与 `HYDRA-UMC-EDITOR-URDF/bump_version.py` 和 `HYDRA-UMC-SUITE/bump_version.py` 的惯例相同。
 * **MediaMTX 的 YAML 是手写的，而非基于 PyYAML** —— `mediamtx_config.py` 的输出形态（一个扁平的 `paths:` 映射，每台摄像头一条 `source: publisher` 条目）足够简单和固定，尚不足以证明引入一个真实依赖的合理性。如果逐摄像头配置增加了嵌套或列表值字段，届时再重新考虑。
 * **流水线和 MediaMTX 配置必须在每台摄像头的一条 RTSP 路径上保持一致** —— `rtsp_url_for()` 是唯一推导该路径的地方（根据摄像头名称），因此 `config gst` 和 `config mediamtx` 永远不会在某台摄像头的流位于何处这件事上产生分歧。
+* **`FrameBuffer` 在满了之后丢弃的是最旧的条目，而不是最新的。** 实时视频对不断增长的过期帧积压毫无用处——最新的一帧才始终是有用的。一个转而阻塞生产者的队列会危及真正的采集线程本身，而一个只是不断增长的队列则会正好带来这道关卡想要防止的无界内存故障。
+* **`reconnect.py` 从不休眠，也从不亲自触碰真实的套接字。** `ConnectionTracker` 只跟踪状态，并把调用方应该等待多久返回给调用方——正是这种分离，让整个退避时间表（包括在达到 `max_attempts` 后诚实地放弃）在测试中可以精确复现，无需真实时钟或真实的摄像头链路参与。
 
 ---
 
@@ -91,9 +94,11 @@ HYDRA-UMC-VISION-STREAMER/
 │   └── hydra_umc_vision_streamer/
 │       ├── config.py           # 逐摄像头配置的解析/校验
 │       ├── pipeline.py         # GStreamer 流水线描述生成
+│       ├── buffer.py           # 真实的有界缓冲区（drop-oldest 背压策略）
+│       ├── reconnect.py        # 真实的确定性重连/退避策略
 │       ├── mediamtx_config.py  # MediaMTX paths.yml 生成
-│       └── main.py             # CLI 入口点（裸调用 + `config`）
-├── tests/               # 真实 pytest 套件（config、pipeline、mediamtx、CLI）
+│       └── main.py             # CLI 入口点（裸调用 + `config`/`stream`）
+├── tests/               # 真实 pytest 套件（config、pipeline、mediamtx、缓冲/重连、CLI）
 ├── docs/                # 文档与调优指南
 ├── build/               # 构建输出（本地 .venv 也存放于此）
 ├── images/              # 媒体与图表
@@ -130,7 +135,7 @@ HYDRA-UMC-VISION-STREAMER/
 2. **虚拟环境** —— 若 `.venv/` 不存在则创建；否则复用。
 3. **可编辑安装** —— `pip install -e ".[dev]"`，使 `src/` 下的修改立即生效，安装 `pytest`，并注册 `hydra-umc-vision-streamer` 控制台入口点。
 4. **编译检查** —— `python -m compileall -q src` 对 `src/` 下每个文件进行字节码编译，即使某个文件从未被 `main.py` 导入，也能在整个生态系统范围内捕获语法错误。
-5. **真实测试套件** —— `python -m pytest tests/ -q`（24 个测试，覆盖 config、pipeline、MediaMTX 生成和 CLI）。
+5. **真实测试套件** —— `python -m pytest tests/ -q`（45 个测试，覆盖 config、pipeline、MediaMTX 生成、缓冲/重连策略和 CLI）。
 
 `set -euo pipefail` 会在第一个失败步骤处停止脚本；只有全部 5 个步骤均
 成功时，构建才会报告成功。
@@ -163,6 +168,20 @@ HYDRA-UMC-VISION-STREAMER/
 #     source: publisher
 ```
 
+真实示例——模拟一个慢速消费者对抗一个有界缓冲区，以及一次断开的连接
+被真实的重连策略处理：
+
+```bash
+./run.sh stream simulate --buffer-size 8 --frames 1000 --consumer-rate 1000
+# Pushed 1000 frame(s) through a buffer capped at 8
+# Max buffer size observed: 8 (must never exceed 8)
+# Frames dropped by backpressure: 972
+#
+# Simulated disconnect at frame 500
+# Reconnect backoff schedule (s): [0.5, 1.0, 2.0, 4.0]
+# Final connection state: given_up
+```
+
 ```bat
 :: Windows - 步骤相同，批处理语法
 build.bat
@@ -180,7 +199,7 @@ run.bat
 
 ## 🚀 当前状态与后续步骤
 
-**今天已实现的内容：** 配置校验、GStreamer 流水线描述生成、以及 MediaMTX 中继配置生成（`config.py`、`pipeline.py`、`mediamtx_config.py`，24 个测试），加上一个真实的、可安装的 Python 包，带有已验证的入口点，以及一个
+**今天已实现的内容：** 配置校验、GStreamer 流水线描述生成、以及 MediaMTX 中继配置生成（`config.py`、`pipeline.py`、`mediamtx_config.py`），加上一个真实的、可证明有界的缓冲区和一个真实的确定性重连策略（`buffer.py`、`reconnect.py`、`stream simulate`），共 45 个测试，再加上一个真实的、可安装的 Python 包，带有已验证的入口点，以及一个
 已接入构建流程的里程表式版本递增机制。具体已捕获的构建/运行输出见 [`CHANGELOG.md`](CHANGELOG.md)。
 
 **仍待完成、顺序不分先后、无既定时间表、且受限于真实硬件的内容：**

@@ -10,9 +10,12 @@ by 1 instead (e.g. `0.0.9` -> `0.1.0`), the same carry cascading into
 `MAJOR` if `MINOR` also exceeds 9. `MAJOR` is otherwise only ever bumped by
 hand.
 
-## [0.0.3]
+## [0.0.4] - Real bounded buffering and deterministic reconnection
 
-- Build version synchronized with `hydra-umc.project.json` and the repository-native version source.
+- **`src/hydra_umc_vision_streamer/buffer.py`** (new) - `FrameBuffer`, a real fixed-capacity queue that drops the OLDEST item (not the newest) once full: the honest backpressure policy a live relay needs so a slow consumer (a saturated network link, an inference stage falling behind) can never make this process's own memory grow without bound. `push()` reports whether it had to drop something; `dropped_count` gives real, cumulative visibility into how much a slow consumer actually cost.
+- **`src/hydra_umc_vision_streamer/reconnect.py`** (new) - `ReconnectPolicy`/`ConnectionTracker`, a real, deterministic exponential-backoff reconnect policy (no jitter, same pattern as `HYDRA-UMC-NODE-HEALING/src/watchdog/retry.go`) for a camera/relay link that drops. `ConnectionTracker` never sleeps or touches a real socket itself - it only tracks state (`connected`/`reconnecting`/`given_up`) and returns the real scheduled delay, which is what makes the whole backoff schedule (including honestly giving up after `max_attempts`, never retrying forever) exactly reproducible in a test.
+- **`main.py`** - new `stream simulate` subcommand: a real, deterministic end-to-end demonstration pushing thousands of synthetic frames through a bounded `FrameBuffer` with a deliberately slow consumer, then driving a simulated disconnect through the real reconnect policy - prints the real max buffer size observed (must never exceed the declared bound), the real dropped-frame count, and the real backoff schedule.
+- 21 new tests (`test_buffer.py` including a 50,000-push stress test proving the buffer's real size never exceeds its bound, `test_reconnect.py` covering the full backoff schedule and the honest give-up path, plus 3 new CLI round-trips) - 45 total. Verified live: a slow consumer (`--consumer-rate 1000`) against an 8-frame buffer over 1000 pushes never exceeds size 8 and reports 972 real drops; a fast consumer (`--consumer-rate 1`) reports 0 drops; the default reconnect policy's schedule matches `[0.5, 1.0, 2.0, 4.0]` before honestly giving up.
 
 ## [0.0.3] - Real v0: camera config, GStreamer pipeline, and MediaMTX generation
 

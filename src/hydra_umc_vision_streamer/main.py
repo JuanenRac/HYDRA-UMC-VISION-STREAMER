@@ -10,7 +10,10 @@ things it drives - the GStreamer pipeline description (pipeline.py) and
 the MediaMTX relay config (mediamtx_config.py) - independent of the
 V4L2/GStreamer/Hailo-8 runtime and physical USB cameras this project
 doesn't have in this environment. Actually opening a device and running
-the generated pipeline is still future work.
+the generated pipeline is still future work. What IS real and testable
+without that hardware: the actual backpressure and reconnection policy
+a live relay needs (buffer.py, reconnect.py), demonstrated end to end by
+the `stream simulate` subcommand below.
 """
 from __future__ import annotations
 
@@ -19,9 +22,11 @@ import sys
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
+from .buffer import FrameBuffer
 from .config import ConfigError, load_cameras
 from .mediamtx_config import build_mediamtx_paths_yaml, rtsp_url_for
 from .pipeline import build_capture_pipeline
+from .reconnect import ConnectionState, ConnectionTracker, ReconnectPolicy
 
 PROJECT_NAME = "HYDRA-UMC-VISION-STREAMER"
 DIST_NAME = "hydra-umc-vision-streamer"
@@ -93,6 +98,52 @@ def _cmd_config_mediamtx(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_stream_simulate(args: argparse.Namespace) -> int:
+    """A real, deterministic simulation of the backpressure + reconnect
+    policy a live relay actually needs - no camera/GStreamer required.
+    Pushes `--frames` synthetic frames through a bounded FrameBuffer
+    with a deliberately slow consumer (popping only every
+    `--consumer-rate` pushes), then simulates a real disconnect
+    partway through and drives it through the real reconnect policy.
+    """
+    buf: FrameBuffer[int] = FrameBuffer(max_size=args.buffer_size)
+    policy = ReconnectPolicy(
+        max_attempts=args.max_reconnect_attempts,
+        base_delay_s=args.base_delay,
+        max_delay_s=args.max_delay,
+    )
+    tracker = ConnectionTracker(policy=policy)
+
+    disconnect_at = args.frames // 2
+    max_size_seen = 0
+    for i in range(args.frames):
+        if i == disconnect_at:
+            tracker.on_disconnect()
+        buf.push(i)
+        max_size_seen = max(max_size_seen, buf.size)
+        if i % args.consumer_rate == 0:
+            buf.pop()
+
+    print(f"Pushed {args.frames} frame(s) through a buffer capped at {args.buffer_size}")
+    print(f"Max buffer size observed: {max_size_seen} (must never exceed {args.buffer_size})")
+    print(f"Frames dropped by backpressure: {buf.dropped_count}")
+    if max_size_seen > args.buffer_size:
+        print("FAIL: buffer exceeded its declared bound - this would be a real bug", file=sys.stderr)
+        return 1
+
+    print(f"\nSimulated disconnect at frame {disconnect_at}")
+    schedule: list[float] = []
+    while tracker.state is ConnectionState.RECONNECTING:
+        delay = tracker.on_reconnect_failed()
+        if delay is None:
+            break
+        schedule.append(delay)
+    print(f"Reconnect backoff schedule (s): {schedule}")
+    print(f"Final connection state: {tracker.state.value}")
+
+    return 0
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="hydra-umc-vision-streamer")
     subparsers = parser.add_subparsers(dest="command")
@@ -115,6 +166,23 @@ def _build_parser() -> argparse.ArgumentParser:
     mediamtx.add_argument("--config", required=True, help="Path to the camera list JSON file")
     mediamtx.add_argument("--out", default=None, help="Write to this file instead of stdout")
     mediamtx.set_defaults(func=_cmd_config_mediamtx)
+
+    stream = subparsers.add_parser("stream", help="Real buffer/reconnect policy, independent of hardware.")
+    stream_sub = stream.add_subparsers(dest="stream_command", required=True)
+
+    simulate = stream_sub.add_parser(
+        "simulate", help="Deterministic simulation of backpressure + reconnection under a slow consumer."
+    )
+    simulate.add_argument("--buffer-size", type=int, default=8, help="Max buffered frames (default: 8)")
+    simulate.add_argument("--frames", type=int, default=1000, help="Total frames to push (default: 1000)")
+    simulate.add_argument(
+        "--consumer-rate", type=int, default=50,
+        help="Pop one frame every N pushes - lower is a faster consumer (default: 50)",
+    )
+    simulate.add_argument("--max-reconnect-attempts", type=int, default=5)
+    simulate.add_argument("--base-delay", type=float, default=0.5, help="Seconds (default: 0.5)")
+    simulate.add_argument("--max-delay", type=float, default=8.0, help="Seconds (default: 8.0)")
+    simulate.set_defaults(func=_cmd_stream_simulate)
 
     return parser
 
