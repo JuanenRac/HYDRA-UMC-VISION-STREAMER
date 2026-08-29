@@ -38,6 +38,30 @@ def test_device_must_start_with_dev(tmp_path):
         load_cameras(p)
 
 
+def test_name_with_unsafe_characters_rejected(tmp_path):
+    # camera.name is written unescaped into generated YAML and gst-launch
+    # pipeline strings - a colon or newline would corrupt either one.
+    p = tmp_path / "cameras.json"
+    _write(p, [_cam(name="cam0: evil")])
+    with pytest.raises(ConfigError):
+        load_cameras(p)
+
+
+def test_name_with_newline_rejected(tmp_path):
+    p = tmp_path / "cameras.json"
+    _write(p, [_cam(name="cam0\nsource: publisher")])
+    with pytest.raises(ConfigError):
+        load_cameras(p)
+
+
+def test_name_with_hyphen_and_underscore_still_parses(tmp_path):
+    # A legitimate name using the allowed safe characters must not regress.
+    p = tmp_path / "cameras.json"
+    _write(p, [_cam(name="cam-0_front")])
+    cameras = load_cameras(p)
+    assert cameras[0].name == "cam-0_front"
+
+
 def test_negative_dimension_rejected(tmp_path):
     p = tmp_path / "cameras.json"
     _write(p, [_cam(width=-1)])

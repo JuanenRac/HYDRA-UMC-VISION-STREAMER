@@ -93,6 +93,15 @@ def test_stream_simulate_reports_a_real_dropped_frame_count_with_a_slow_consumer
     assert "Frames dropped by backpressure: 495" in result.stdout
 
 
+def test_stream_simulate_rejects_zero_consumer_rate():
+    # --consumer-rate 0 would be `i % 0`, an unhandled ZeroDivisionError -
+    # this must be a clean CLI error instead.
+    result = run_cli("stream", "simulate", "--consumer-rate", "0")
+    assert result.returncode == 1
+    assert "error" in result.stderr
+    assert "ZeroDivisionError" not in result.stderr
+
+
 def test_stream_simulate_prints_the_real_reconnect_schedule():
     # max_reconnect_attempts=3 means attempts 1 and 2 each produce a
     # real scheduled delay; the 3rd call exhausts the budget and gives

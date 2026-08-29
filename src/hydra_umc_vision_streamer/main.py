@@ -106,6 +106,10 @@ def _cmd_stream_simulate(args: argparse.Namespace) -> int:
     `--consumer-rate` pushes), then simulates a real disconnect
     partway through and drives it through the real reconnect policy.
     """
+    if args.consumer_rate <= 0:
+        print("error: --consumer-rate must be a positive integer", file=sys.stderr)
+        return 1
+
     buf: FrameBuffer[int] = FrameBuffer(max_size=args.buffer_size)
     policy = ReconnectPolicy(
         max_attempts=args.max_reconnect_attempts,

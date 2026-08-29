@@ -15,10 +15,19 @@ missing to run this for real.
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
 ALLOWED_FORMATS = ("MJPG", "YUYV", "H264")
+
+# camera.name is interpolated unescaped into a hand-built YAML file
+# (mediamtx_config.build_mediamtx_paths_yaml) and into a gst-launch-1.0
+# pipeline string (pipeline.build_capture_pipeline) - both generators
+# trust it as a bare token, not a quoted/escaped one. Restricting it to
+# this safe set up front is what keeps a stray `:`, space, or newline
+# from corrupting either generator's output.
+_NAME_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 
 
 class ConfigError(ValueError):
@@ -43,6 +52,11 @@ def _parse_camera(raw: dict, index: int) -> CameraConfig:
 
     if not raw["name"]:
         raise ConfigError(f"camera {index}: name must not be empty")
+    if not _NAME_RE.fullmatch(str(raw["name"])):
+        raise ConfigError(
+            f"camera {index}: name {raw['name']!r} must match {_NAME_RE.pattern} "
+            f"(it is written unescaped into generated YAML and gst-launch pipelines)"
+        )
     if not str(raw["device"]).startswith("/dev/"):
         raise ConfigError(f"camera {index} ({raw['name']}): device must start with /dev/")
     for field in ("width", "height", "fps"):

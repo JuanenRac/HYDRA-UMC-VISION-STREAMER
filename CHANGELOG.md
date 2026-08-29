@@ -10,6 +10,33 @@ by 1 instead (e.g. `0.0.9` -> `0.1.0`), the same carry cascading into
 `MAJOR` if `MINOR` also exceeds 9. `MAJOR` is otherwise only ever bumped by
 hand.
 
+## [0.0.5] - Two real bugs closed from a live ecosystem bug audit
+
+- **`src/hydra_umc_vision_streamer/main.py`** - `stream simulate` no longer
+  crashes with an unhandled `ZeroDivisionError` on `--consumer-rate 0`
+  (argparse only enforced `type=int`, not a minimum). `_cmd_stream_simulate`
+  now rejects a non-positive `--consumer-rate` up front with a clean
+  `error: --consumer-rate must be a positive integer` message and exit
+  code 1, the same pattern the other `_cmd_*` handlers already use for
+  bad user input.
+- **`src/hydra_umc_vision_streamer/config.py`** - `_parse_camera()` only
+  checked that `camera.name` was non-empty; unlike `device` (which must
+  start with `/dev/`), no characters were restricted, even though
+  `camera.name` is interpolated unescaped into both a hand-built YAML
+  file (`mediamtx_config.build_mediamtx_paths_yaml`) and a
+  `gst-launch-1.0` pipeline string (`pipeline.build_capture_pipeline`) -
+  the two generators the README says must agree with this module in
+  shape. A name containing a colon, space, or newline could corrupt
+  either generator's output. `_parse_camera()` now restricts `name` to
+  `^[A-Za-z0-9_-]+$`, rejecting an unsafe name at config-parse time -
+  the earliest point in the pipeline, before either generator ever sees
+  it - instead of downstream in generated YAML or gst-launch syntax.
+- 4 new regression tests - `test_stream_simulate_rejects_zero_consumer_rate`
+  in `test_cli.py`; `test_name_with_unsafe_characters_rejected`,
+  `test_name_with_newline_rejected`, and
+  `test_name_with_hyphen_and_underscore_still_parses` (a legitimate name
+  still parses fine) in `test_config.py` - 49 total, all passing.
+
 ## [0.0.4] - Real bounded buffering and deterministic reconnection
 
 - **`src/hydra_umc_vision_streamer/buffer.py`** (new) - `FrameBuffer`, a real fixed-capacity queue that drops the OLDEST item (not the newest) once full: the honest backpressure policy a live relay needs so a slow consumer (a saturated network link, an inference stage falling behind) can never make this process's own memory grow without bound. `push()` reports whether it had to drop something; `dropped_count` gives real, cumulative visibility into how much a slow consumer actually cost.

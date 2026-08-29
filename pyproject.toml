@@ -1,6 +1,6 @@
 [project]
 name = "hydra-umc-vision-streamer"
-version = "0.0.4"
+version = "0.0.5"
 description = "Optimized GStreamer capture and pre-processing pipeline for up to 8x USB 3.0 camera streams feeding the Hailo-8 NPU on HYDRA-UMC-VISION-NODE."
 readme = "README.md"
 requires-python = ">=3.10"
