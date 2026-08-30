@@ -18,6 +18,33 @@ hand.
   MediaMTX relay configuration.
 - Added regression tests for each rejected input shape.
 
+## [0.0.6] - Real HailoRT integration boundary, prepared ahead of the Hailo-8 module
+
+- **Added `src/hydra_umc_vision_streamer/hailo_runtime.py`** (new) - a
+  real HailoRT (`hailo_platform`) integration boundary, so this pipeline
+  is ready to actually feed the Hailo-8 the moment a real module is
+  attached, rather than starting that work from zero then.
+  `open_vdevice()` and `load_hailo_detection_model()` are written against
+  the real, confirmed HailoRT Python API (`VDevice`, `HEF`,
+  `ConfigureParams.create_from_hef(..., interface=HailoStreamInterface.PCIe)`),
+  lazily imported (same pattern as this ecosystem's other real hardware
+  transports) so this development machine, which has no `hailort`
+  installed, degrades to a clear `HailoNotAvailableError` instead of a
+  bare `ImportError`. Also added real, hardware-independent pre-flight
+  validation - `expected_input_frame_bytes()` /
+  `validate_frame_matches_input()` - that catches a camera resolution
+  configured in `config.py` not matching a loaded model's real input
+  tensor shape before a single frame is ever pushed at the device.
+  Deliberately does not parse a real detection model's NMS output byte
+  layout yet - that's the next real step once a real `.hef` exists to
+  verify it against, not guessed at here. `hailort` added as a new
+  `[project.optional-dependencies]` extra (`pip install .[hailo]`); never
+  required. 9 new tests (61 total).
+
+## [0.0.6]
+
+- Build version synchronized with `hydra-umc.project.json` and the repository-native version source.
+
 ## [0.0.5] - Two real bugs closed from a live ecosystem bug audit
 
 - **`src/hydra_umc_vision_streamer/main.py`** - `stream simulate` no longer

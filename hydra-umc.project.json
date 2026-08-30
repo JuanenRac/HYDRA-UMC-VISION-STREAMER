@@ -2,7 +2,7 @@
   "schema_version": "1.0",
   "ecosystem": "HYDRA-UMC",
   "name": "HYDRA-UMC-VISION-STREAMER",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "role": "service",
   "stack": "python",
   "technologies": [
@@ -15,7 +15,7 @@
   "family": "Vision AI Node",
   "parent": "HYDRA-UMC-VISION-NODE",
   "build": "python tools/build_test.py",
-  "notes": "Established v0: real per-camera config validation, GStreamer pipeline description generation, and MediaMTX paths.yml generation, exposed via 'config validate'/'config gst'/'config mediamtx'. Real bounded frame buffering (drop-oldest backpressure, provably bounded memory under a slow consumer) and a real deterministic reconnect/backoff policy for a dropped camera link, exposed via 'stream simulate'. 52 tests. Actually running the generated pipeline against physical USB cameras needs the V4L2/GStreamer/Hailo-8 runtime, which is future work.",
+  "notes": "Established v0: real per-camera config validation, GStreamer pipeline description generation, and MediaMTX paths.yml generation, exposed via 'config validate'/'config gst'/'config mediamtx'. Real bounded frame buffering (drop-oldest backpressure, provably bounded memory under a slow consumer) and a real deterministic reconnect/backoff policy for a dropped camera link, exposed via 'stream simulate'. Added hailo_runtime.py: a real HailoRT (hailo_platform) integration boundary - open_vdevice()/load_hailo_detection_model() against the real confirmed API, lazily imported so this dev machine (no hailort installed) degrades to a clear RuntimeError; real pre-flight frame/input-shape validation against config.py's CameraConfig, fully unit-tested without hailort. 61 tests. Actually running the generated pipeline (and parsing a real model's NMS output) against physical USB cameras and a real Hailo-8 module is future work.",
   "native_version": {
     "file": "pyproject.toml",
     "pattern": "^version\\s*=\\s*\"(\\d+)\\.(\\d+)\\.(\\d+)\""

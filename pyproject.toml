@@ -1,6 +1,6 @@
 [project]
 name = "hydra-umc-vision-streamer"
-version = "0.0.5"
+version = "0.0.6"
 description = "Optimized GStreamer capture and pre-processing pipeline for up to 8x USB 3.0 camera streams feeding the Hailo-8 NPU on HYDRA-UMC-VISION-NODE."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -13,8 +13,12 @@ authors = [{ name = "JuanenRac", email = "electrohobby3d@gmail.com" }]
 # runtime lands: PyGObject (GStreamer bindings), v4l2py (camera control).
 dependencies = []
 
+# hailo_runtime.py's own hailort import is lazy (see that module's own
+# header) so this extra is only needed to actually run inference against
+# a real Hailo-8 module - never to import or test this package.
 [project.optional-dependencies]
 dev = ["pytest>=8.0"]
+hailo = ["hailort"]
 
 [project.scripts]
 hydra-umc-vision-streamer = "hydra_umc_vision_streamer.main:main"
