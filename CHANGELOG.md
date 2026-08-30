@@ -10,6 +10,14 @@ by 1 instead (e.g. `0.0.9` -> `0.1.0`), the same carry cascading into
 `MAJOR` if `MINOR` also exceeds 9. `MAJOR` is otherwise only ever bumped by
 hand.
 
+## [Unreleased] - bounded, typed camera configuration
+
+- **`config.py`** - camera-list loading now rejects non-object entries,
+  boolean dimensions and configurations with more than the documented eight
+  cameras. Invalid data fails before it can generate a partial pipeline or
+  MediaMTX relay configuration.
+- Added regression tests for each rejected input shape.
+
 ## [0.0.5] - Two real bugs closed from a live ecosystem bug audit
 
 - **`src/hydra_umc_vision_streamer/main.py`** - `stream simulate` no longer

@@ -97,6 +97,27 @@ def test_not_a_list(tmp_path):
         load_cameras(p)
 
 
+def test_non_object_camera_entry_is_rejected_cleanly(tmp_path):
+    p = tmp_path / "cameras.json"
+    _write(p, ["not-a-camera"])
+    with pytest.raises(ConfigError, match="entry must be an object"):
+        load_cameras(p)
+
+
+def test_boolean_capture_dimension_is_not_an_integer(tmp_path):
+    p = tmp_path / "cameras.json"
+    _write(p, [_cam(width=True)])
+    with pytest.raises(ConfigError, match="width must be a positive integer"):
+        load_cameras(p)
+
+
+def test_more_than_eight_cameras_is_rejected_before_generation(tmp_path):
+    p = tmp_path / "cameras.json"
+    _write(p, [_cam(name=f"cam{i}", device=f"/dev/video{i}") for i in range(9)])
+    with pytest.raises(ConfigError, match="maximum is 8"):
+        load_cameras(p)
+
+
 def test_malformed_json(tmp_path):
     p = tmp_path / "cameras.json"
     p.write_text("{not json", encoding="utf-8")
