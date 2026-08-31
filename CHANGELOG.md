@@ -18,6 +18,30 @@ hand.
   MediaMTX relay configuration.
 - Added regression tests for each rejected input shape.
 
+## [0.0.8] - Real CM5 deployment for `stream serve`
+
+- **`systemd/hydra-umc-vision-streamer@.service`** (new) - templated unit,
+  one instance per admin-assigned camera slot (`hydra-umc-vision-streamer@N`,
+  N matching the same `cameraId` HYDRA-UMC-STUDIO's admin panel already
+  assigns). Recomputes the exact `8100 + cameraId - 1` port
+  HYDRA-UMC-SERVER's own `GET /api/camera/:id/stream` proxy already expects,
+  runs as an unprivileged system account granted only the `video` group
+  (real Debian default ownership of `/dev/video*`), no `PrivateDevices`
+  (that would hide the camera from the unit entirely).
+- **`systemd/cameras.env.example`** (new) - the one thing this unit needs
+  per slot: `DEVICE=/dev/videoN`, deliberately a manual admin assignment
+  (see the file's own header for why an automatic guess isn't attempted -
+  a machine with more than one USB camera has no reliable way to know
+  which node is which slot without a person deciding).
+- **`HYDRA-UMC-OS/provisioning/install_vision_streamer.sh`** (new, that
+  repo) - installs the real `python3-opencv`/`v4l-utils` apt packages,
+  copies `src/` the same way `install_datalake.sh` already does, installs
+  the unit above. Installs the capability only; enabling a specific camera
+  slot is a printed manual follow-up, on purpose.
+- Real gap still open: not yet verified against a physically-connected USB
+  camera - `tests/test_mjpeg_server.py` mocks `cv2.VideoCapture` at the
+  module boundary; real hardware verification is still pending.
+
 ## [0.0.7] - Real v0 capture+serve: `stream serve` (mjpeg_server.py)
 
 - **`mjpeg_server.py`** (new) - opens a real V4L2 device via OpenCV,
