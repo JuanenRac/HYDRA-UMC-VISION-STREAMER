@@ -1,6 +1,6 @@
 [project]
 name = "hydra-umc-vision-streamer"
-version = "0.0.6"
+version = "0.0.7"
 description = "Optimized GStreamer capture and pre-processing pipeline for up to 8x USB 3.0 camera streams feeding the Hailo-8 NPU on HYDRA-UMC-VISION-NODE."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -9,8 +9,14 @@ authors = [{ name = "JuanenRac", email = "electrohobby3d@gmail.com" }]
 # No runtime dependencies yet - the v0 config/pipeline-description layer
 # (config.py, pipeline.py, mediamtx_config.py) uses only the stdlib; its
 # MediaMTX YAML output is hand-rolled rather than pulling in PyYAML for a
-# shape this simple (see mediamtx_config.py). Still planned once the
+# shape this simple (see mediamtx_config.py). Still planned once the full
 # runtime lands: PyGObject (GStreamer bindings), v4l2py (camera control).
+# mjpeg_server.py's real v0 capture+serve path needs OpenCV (cv2) too -
+# same lazy-import-degrades-with-a-clear-error shape hailo_runtime.py's
+# own hailort import already uses, deliberately NOT listed here: install
+# the real python3-opencv Debian package (no source build on ARM, unlike
+# pip's own opencv-python) rather than adding a pip dependency this
+# package would otherwise require just to import.
 dependencies = []
 
 # hailo_runtime.py's own hailort import is lazy (see that module's own

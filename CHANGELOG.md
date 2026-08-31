@@ -18,6 +18,26 @@ hand.
   MediaMTX relay configuration.
 - Added regression tests for each rejected input shape.
 
+## [0.0.7] - Real v0 capture+serve: `stream serve` (mjpeg_server.py)
+
+- **`mjpeg_server.py`** (new) - opens a real V4L2 device via OpenCV,
+  JPEG-encodes real captured frames, and serves them as a real HTTP MJPEG
+  multipart stream, reusing this project's own already-real, already-
+  tested `FrameBuffer` (`buffer.py`) for the exact bounded-backpressure
+  reasoning that module already documents. Closes the exact gap this
+  project's own `main.py` docstring already named as future work
+  ("Actually running the generated pipeline... against physical USB
+  cameras... is still future work") for the one thing needed today -
+  real live video from a real USB webcam - deliberately not the full
+  GStreamer/Hailo-8 tee/inference pipeline `pipeline.py` still describes
+  for tomorrow (see that module's own docstring for why OpenCV, not
+  GStreamer, for this v0). New `stream serve` CLI subcommand
+  (`--device`/`--addr`/`--port`/`--width`/`--height`/`--fps`).
+- **`tools/build_test.py`** now actually runs this repo's own real
+  `tests/` pytest suite (65 tests) - real gap found live: it only ever
+  syntax-checked Python sources before, so a real regression could pass
+  `build_test.py` cleanly.
+
 ## [0.0.6] - Real HailoRT integration boundary, prepared ahead of the Hailo-8 module
 
 - **Added `src/hydra_umc_vision_streamer/hailo_runtime.py`** (new) - a

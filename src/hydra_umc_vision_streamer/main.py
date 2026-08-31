@@ -25,6 +25,7 @@ from pathlib import Path
 from .buffer import FrameBuffer
 from .config import ConfigError, load_cameras
 from .mediamtx_config import build_mediamtx_paths_yaml, rtsp_url_for
+from .mjpeg_server import CameraUnavailableError, serve_camera
 from .pipeline import build_capture_pipeline
 from .reconnect import ConnectionState, ConnectionTracker, ReconnectPolicy
 
@@ -148,6 +149,22 @@ def _cmd_stream_simulate(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_stream_serve(args: argparse.Namespace) -> int:
+    """Real, blocking capture+serve - see mjpeg_server.py's own module
+    docstring for why OpenCV rather than the GStreamer pipeline
+    `config gst` above generates. Fails loud and fast (before ever
+    binding the HTTP port) if the device can't be opened, matching the
+    ecosystem's own "no guessed process" convention."""
+    try:
+        serve_camera(args.device, args.addr, args.port, args.width, args.height, args.fps)
+    except CameraUnavailableError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    except KeyboardInterrupt:
+        pass
+    return 0
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="hydra-umc-vision-streamer")
     subparsers = parser.add_subparsers(dest="command")
@@ -187,6 +204,17 @@ def _build_parser() -> argparse.ArgumentParser:
     simulate.add_argument("--base-delay", type=float, default=0.5, help="Seconds (default: 0.5)")
     simulate.add_argument("--max-delay", type=float, default=8.0, help="Seconds (default: 8.0)")
     simulate.set_defaults(func=_cmd_stream_simulate)
+
+    real = stream_sub.add_parser(
+        "serve", help="Real MJPEG capture+serve from an actual V4L2 device (mjpeg_server.py) - the v0 path pipeline.py/mediamtx_config.py above still name as future work."
+    )
+    real.add_argument("--device", required=True, help="V4L2 device: a bare index (e.g. 0 for /dev/video0) or a full device path")
+    real.add_argument("--addr", default="127.0.0.1", help="Address to bind the MJPEG HTTP server to (default: 127.0.0.1)")
+    real.add_argument("--port", type=int, required=True, help="Port to serve the MJPEG stream on")
+    real.add_argument("--width", type=int, default=1280)
+    real.add_argument("--height", type=int, default=720)
+    real.add_argument("--fps", type=int, default=30)
+    real.set_defaults(func=_cmd_stream_serve)
 
     return parser
 

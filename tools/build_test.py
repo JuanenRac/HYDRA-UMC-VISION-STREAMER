@@ -59,6 +59,19 @@ def main() -> int:
 
     if stack in {"python", "python-bare"}:
         compile_python_sources()
+        # Real gap found live while adding mjpeg_server.py's own real
+        # tests: this generic template only ever syntax-checked Python
+        # sources, never actually ran this repo's real, passing pytest
+        # suite (tests/) - a real regression could pass build_test.py
+        # cleanly. src/ isn't installed (no editable pip install step
+        # anywhere in this repo's own docs), so PYTHONPATH is set
+        # directly rather than assuming one.
+        tests_dir = ROOT / "tests"
+        if tests_dir.is_dir():
+            python = sys.executable
+            environment = dict(os.environ)
+            environment["PYTHONPATH"] = str(ROOT / "src")
+            run(python, "-m", "pytest", str(tests_dir), env=environment)
     elif stack == "node":
         npm = "npm.cmd" if os.name == "nt" else "npm"
         # Reuse an existing local dependency tree so a running editor/linter
