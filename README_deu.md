@@ -181,14 +181,15 @@ run.bat
 
 ## 🚀 Aktueller Status & Nächste Schritte
 
-**Was heute funktioniert:** die Konfigurationsvalidierung, die Generierung der GStreamer-Pipeline-Beschreibung, und die Generierung der MediaMTX-Relay-Konfiguration (`config.py`, `pipeline.py`, `mediamtx_config.py`), plus ein echter, nachweislich begrenzter Puffer und eine echte deterministische Wiederverbindungspolitik (`buffer.py`, `reconnect.py`, `stream simulate`), 45 Tests insgesamt, plus ein echtes, installierbares Python-Paket mit verifiziertem Einstiegspunkt und ein in den Build integrierter Kilometerzähler-Versions-Bump. Siehe [`CHANGELOG.md`](CHANGELOG.md) für die erfasste Build-/Run-Ausgabe.
+**Was heute funktioniert:** die Konfigurationsvalidierung, die Generierung der GStreamer-Pipeline-Beschreibung, und die Generierung der MediaMTX-Relay-Konfiguration (`config.py`, `pipeline.py`, `mediamtx_config.py`), ein echter, nachweislich begrenzter Puffer und eine echte deterministische Wiederverbindungspolitik (`buffer.py`, `reconnect.py`, `stream simulate`), eine echte HailoRT-Integrationsgrenze (`hailo_runtime.py`), bereit für ein echtes Hailo-8-Modul, sobald es angeschlossen wird, und ein echter v0-Capture+Serve-Pfad (`mjpeg_server.py`, `stream serve`), der ein echtes V4L2-Gerät über OpenCV öffnet und echtes MJPEG über HTTP ausliefert - installierbar auf einer CM5 über `provisioning/install_vision_streamer.sh` von `HYDRA-UMC-OS` (eine systemd-Instanz pro vom Administrator zugewiesenem Kamera-Slot, `systemd/hydra-umc-vision-streamer@.service`) und bereits live genutzt vom `GET /api/camera/:id/stream`-Proxy von `HYDRA-UMC-SERVER` und den Kameraansichten von `HYDRA-UMC-STUDIO` - 65 Tests insgesamt, plus ein echtes, installierbares Python-Paket mit verifiziertem Einstiegspunkt und ein in den Build integrierter Kilometerzähler-Versions-Bump. Siehe [`CHANGELOG.md`](CHANGELOG.md) für die erfasste Build-/Run-Ausgabe.
 
 **Was noch offen ist, ohne bestimmte Reihenfolge, ohne verbindlichen Zeitplan, und blockiert durch echte Hardware:**
 
-* Die generierte Pipeline tatsächlich über ein echtes GStreamer/PyGObject-Laufzeitsystem und ein physisches V4L2-Gerät auszuführen.
+* Die *generierte Pipeline* tatsächlich auszuführen - der vollständige GStreamer/PyGObject-Tee in einen Hailo-8-Inferenzzweig, nicht das einfachere OpenCV-v0 (`stream serve` oben) - über ein echtes Laufzeitsystem.
 * Hardware-ISP-Skalierung/Formatkonvertierung (benötigt den echten CM5-ISP).
-* Die Zero-Copy-Übergabe an die von [HYDRA-UMC-VISION-NODE](https://github.com/JuanenRac/HYDRA-UMC-VISION-NODE) besessene Hailo-8-Laufzeit.
+* Die Inferenz tatsächlich über `hailo_runtime.py` auszuführen (benötigt ein echtes Hailo-8-Modul und eine echte kompilierte `.hef`), und das reale NMS-Ausgabeformat dieses Modells zu parsen - bewusst nicht ohne das Gerät zur Verifikation geraten.
 * WebRTC-Ausgabe, und Belichtungs-/Verstärkungssteuerung pro Kamera (benötigt das echte V4L2-Gerät).
+* `stream serve` wurde noch nicht gegen eine real angeschlossene USB-Kamera verifiziert - nur gegen ein an der Modulgrenze gemocktes `cv2.VideoCapture` (siehe `tests/test_mjpeg_server.py`).
 
 ---
 

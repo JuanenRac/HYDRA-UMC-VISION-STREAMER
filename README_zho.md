@@ -199,15 +199,16 @@ run.bat
 
 ## 🚀 当前状态与后续步骤
 
-**今天已实现的内容：** 配置校验、GStreamer 流水线描述生成、以及 MediaMTX 中继配置生成（`config.py`、`pipeline.py`、`mediamtx_config.py`），加上一个真实的、可证明有界的缓冲区和一个真实的确定性重连策略（`buffer.py`、`reconnect.py`、`stream simulate`），共 45 个测试，再加上一个真实的、可安装的 Python 包，带有已验证的入口点，以及一个
+**今天已实现的内容：** 配置校验、GStreamer 流水线描述生成、以及 MediaMTX 中继配置生成（`config.py`、`pipeline.py`、`mediamtx_config.py`），一个真实的、可证明有界的缓冲区和一个真实的确定性重连策略（`buffer.py`、`reconnect.py`、`stream simulate`），一个真实的 HailoRT 集成边界（`hailo_runtime.py`），一旦真实的 Hailo-8 模块接入即可使用，以及一个真实的 v0 采集+推送路径（`mjpeg_server.py`、`stream serve`），通过 OpenCV 打开真实的 V4L2 设备并通过 HTTP 提供真实的 MJPEG - 可通过 `HYDRA-UMC-OS` 自身的 `provisioning/install_vision_streamer.sh` 安装到 CM5 上（每个由管理员分配的摄像头槽位对应一个 systemd 实例，`systemd/hydra-umc-vision-streamer@.service`），并已被 `HYDRA-UMC-SERVER` 的 `GET /api/camera/:id/stream` 代理和 `HYDRA-UMC-STUDIO` 的摄像头视图实时使用 - 共 65 个测试，再加上一个真实的、可安装的 Python 包，带有已验证的入口点，以及一个
 已接入构建流程的里程表式版本递增机制。具体已捕获的构建/运行输出见 [`CHANGELOG.md`](CHANGELOG.md)。
 
 **仍待完成、顺序不分先后、无既定时间表、且受限于真实硬件的内容：**
 
-* 通过真实的 GStreamer/PyGObject 运行时和物理 V4L2 设备真正运行已生成的流水线。
+* 真正运行*已生成的流水线* - 完整的 GStreamer/PyGObject tee 到 Hailo-8 推理分支，而不是上面更简单的 OpenCV v0（`stream serve`） - 通过真实运行时。
 * 硬件 ISP 缩放/格式转换（需要真实的 CM5 ISP）。
-* 向 [HYDRA-UMC-VISION-NODE](https://github.com/JuanenRac/HYDRA-UMC-VISION-NODE) 所拥有的 Hailo-8 运行时的零拷贝交接。
+* 真正通过 `hailo_runtime.py` 运行推理（需要真实的 Hailo-8 模块和真实编译的 `.hef`），并解析该真实模型的 NMS 输出格式 - 在没有设备验证的情况下故意不做猜测。
 * WebRTC 输出，以及逐摄像头曝光/增益控制（需要真实的 V4L2 设备）。
+* `stream serve` 尚未针对真实物理连接的 USB 摄像头进行过验证 - 仅针对在模块边界处模拟的 `cv2.VideoCapture` 进行过验证（见 `tests/test_mjpeg_server.py`）。
 
 ---
 
