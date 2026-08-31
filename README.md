@@ -103,7 +103,7 @@ No `hardware/`, `firmware/`, `os/` or `models/` folder - see "Advanced Technical
 
 ---
 
-## 🏗️ BUILD & RUN
+## 🏗️ BUILD & RUN GUIDE
 
 ### Prerequisites
 
