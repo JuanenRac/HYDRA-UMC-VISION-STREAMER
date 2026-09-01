@@ -270,6 +270,7 @@ Ce projet n'a pas de relation directe hors de la famille Vision AI Node (selon l
 ## 👤 AUTEUR
 **JuanenRac** (Electro Hobby 3D)
 📧 electrohobby3d@gmail.com
+📺 [youtube.com/@electrohobby3d](https://youtube.com/@electrohobby3d)
 
 ## 📜 LICENCE
 GPL-3.0 - Voir le fichier LICENSE pour les détails.
