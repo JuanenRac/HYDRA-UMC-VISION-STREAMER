@@ -35,7 +35,7 @@ This is one of the 4 children of **[HYDRA-UMC-VISION-NODE](https://github.com/Ju
 * 🛠️ **Dynamic Configuration:** per-camera resolution, framerate, and pixel format are real and validated today (`config.py`); exposure/gain control needs the real V4L2 device and is future work.
 * 🧩 **Why it exists as its own project:** capture/ISP tuning is a different skill and a different failure domain than model inference or safety logic - keeping it in its own process means a capture bug cannot take down [HYDRA-UMC-SAFETY-ZONES](https://github.com/JuanenRac/HYDRA-UMC-SAFETY-ZONES), and the two can be developed/tested independently.
 
-**Honesty check - what actually runs today:** the config validation, GStreamer pipeline description generation, MediaMTX relay config generation, the real buffer/reconnect policy, and the HailoRT integration boundary (`config.py`, `pipeline.py`, `mediamtx_config.py`, `buffer.py`, `reconnect.py`, `hailo_runtime.py`) are real and tested (61 tests). None of it opens a V4L2 device, imports GStreamer, or talks to a physical camera or Hailo-8 module - actually running the generated pipeline and real inference needs that real runtime and hardware, which this environment doesn't have. See [`CHANGELOG.md`](CHANGELOG.md) for exactly what has shipped so far, and "Current Status & Next Steps" below for what remains open.
+**Honesty check - what actually runs today:** the config validation, GStreamer pipeline description generation, MediaMTX relay config generation, the real buffer/reconnect policy, and the HailoRT integration boundary (`config.py`, `pipeline.py`, `mediamtx_config.py`, `buffer.py`, `reconnect.py`, `hailo_runtime.py`) are real and tested (65 tests). None of it opens a V4L2 device, imports GStreamer, or talks to a physical camera or Hailo-8 module - actually running the generated pipeline and real inference needs that real runtime and hardware, which this environment doesn't have. See [`CHANGELOG.md`](CHANGELOG.md) for exactly what has shipped so far, and "Current Status & Next Steps" below for what remains open.
 
 ---
 
@@ -122,7 +122,7 @@ No `hardware/`, `firmware/`, `os/` or `models/` folder - see "Advanced Technical
 2. **Virtual environment** - creates `.venv/` if missing; reuses it otherwise.
 3. **Editable install** - `pip install -e ".[dev]"` so `src/` edits take effect immediately, installs `pytest`, and registers the `hydra-umc-vision-streamer` console entry point.
 4. **Compile-check** - `python -m compileall -q src` byte-compiles every file under `src/`, catching syntax errors ecosystem-wide even in files `main.py` never imports.
-5. **Real test suite** - `python -m pytest tests/ -q` (61 tests covering config, pipeline, MediaMTX generation, the buffer/reconnect policy, the HailoRT integration boundary, and the CLI).
+5. **Real test suite** - `python -m pytest tests/ -q` (65 tests covering config, pipeline, MediaMTX generation, the buffer/reconnect policy, the HailoRT integration boundary, and the CLI).
 
 `set -euo pipefail` stops the script at the first failing step; the build only reports success if all 5 pass.
 

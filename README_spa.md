@@ -35,7 +35,7 @@ Este es uno de los 4 hijos de **[HYDRA-UMC-VISION-NODE](https://github.com/Juane
 * 🛠️ **Configuración Dinámica:** resolución, framerate y formato de píxel por cámara son reales y se validan hoy (`config.py`); el control de exposición/ganancia necesita el dispositivo V4L2 real y es trabajo futuro.
 * 🧩 **Por qué existe como proyecto separado:** el ajuste de captura/ISP es una habilidad distinta y un dominio de fallos distinto al de la inferencia de modelos o la lógica de seguridad - mantenerlo en su propio proceso significa que un fallo de captura no puede tumbar [HYDRA-UMC-SAFETY-ZONES](https://github.com/JuanenRac/HYDRA-UMC-SAFETY-ZONES), y ambos se pueden desarrollar/probar de forma independiente.
 
-**Comprobación de honestidad - qué funciona hoy de verdad:** la validación de config, la generación de la descripción del pipeline GStreamer, la generación de la config de relay MediaMTX, y la política real de buffer/reconexión (`config.py`, `pipeline.py`, `mediamtx_config.py`, `buffer.py`, `reconnect.py`) son reales y están testeadas (45 tests). Nada de esto abre un dispositivo V4L2, importa GStreamer, ni habla con una cámara física - ejecutar de verdad el pipeline generado necesita ese runtime y hardware reales, que este entorno no tiene. Ver [`CHANGELOG.md`](CHANGELOG.md) para lo entregado exactamente hasta ahora, y "Estado Actual y Próximos Pasos" más abajo para lo que sigue abierto.
+**Comprobación de honestidad - qué funciona hoy de verdad:** la validación de config, la generación de la descripción del pipeline GStreamer, la generación de la config de relay MediaMTX, y la política real de buffer/reconexión, y el límite real de integración con HailoRT (`config.py`, `pipeline.py`, `mediamtx_config.py`, `buffer.py`, `reconnect.py`, `hailo_runtime.py`) son reales y están testeadas (65 tests). Nada de esto abre un dispositivo V4L2, importa GStreamer, ni habla con una cámara física - ejecutar de verdad el pipeline generado necesita ese runtime y hardware reales, que este entorno no tiene. Ver [`CHANGELOG.md`](CHANGELOG.md) para lo entregado exactamente hasta ahora, y "Estado Actual y Próximos Pasos" más abajo para lo que sigue abierto.
 
 ---
 
@@ -122,7 +122,7 @@ Sin carpeta `hardware/`, `firmware/`, `os/` ni `models/` - ver "Información Té
 2. **Entorno virtual** - crea `.venv/` si falta; lo reutiliza si ya existe.
 3. **Instalación editable** - `pip install -e ".[dev]"` para que los cambios en `src/` tengan efecto inmediato, instala `pytest`, y registra el entry point de consola `hydra-umc-vision-streamer`.
 4. **Compile-check** - `python -m compileall -q src` compila a bytecode cada archivo bajo `src/`, detectando errores de sintaxis en todo el paquete.
-5. **Suite de tests real** - `python -m pytest tests/ -q` (45 tests que cubren config, pipeline, generación de MediaMTX, la política de buffer/reconexión y el CLI).
+5. **Suite de tests real** - `python -m pytest tests/ -q` (65 tests que cubren config, pipeline, generación de MediaMTX, la política de buffer/reconexión, el límite de integración con HailoRT, y el CLI).
 
 `set -euo pipefail` detiene el script en el primer paso que falle; el build solo reporta éxito si los 5 pasos tienen éxito.
 
