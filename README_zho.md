@@ -32,6 +32,7 @@
 * ✅ **真实 v0 —— 配置、流水线与中继生成：** `config.py` 校验逐摄像头的 JSON 配置（设备、分辨率、fps、格式）；`pipeline.py` 为一台摄像头生成真实的 GStreamer 流水线描述；`mediamtx_config.py` 生成对应的 MediaMTX `paths.yml`。通过下方的 `config validate`/`config gst`/`config mediamtx` 暴露——运行或测试都不需要 GStreamer 运行时、V4L2 或物理摄像头。
 * 🔁 **真实 v0 —— 有界缓冲与重连：** `buffer.py` 的 `FrameBuffer` 是一个固定容量的队列，满了之后会丢弃最旧的（而不是最新的）条目——这是一个实时中继所需要的真实背压策略，能确保一个慢速消费者永远不会让本进程的内存无限增长。`reconnect.py` 的 `ConnectionTracker` 是针对断开的摄像头/中继链路的真实的、确定性的指数退避重连策略。通过下方的 `stream simulate` 暴露——完全无需 GStreamer 或物理摄像头即可测试。
 * 📡 **RTSP/WebRTC 支持（部分计划中）：** RTSP 中继路径（`rtspclientsink` → MediaMTX）已经设计完成，其配置在上方已真实生成；真正运行它需要本环境不具备的 GStreamer 运行时。WebRTC 输出仍完全处于计划阶段。
+* 🔌 **HailoRT 集成边界，先于模块本身准备就绪：** `hailo_runtime.py` 依据真实、已确认的 `hailo_platform` API(`VDevice`、`HEF`、`ConfigureParams`)编写——采用延迟导入,因此即使没有安装 `hailort` 包或没有 Hailo-8 模块存在,本仓库也能干净地安装/测试——此外还具备真实的预检验证,在向设备推送任何一帧之前,确认摄像头配置的分辨率确实与已加载模型的输入张量形状相匹配。*(已实现,仅为集成边界——真正运行推理并解析真实模型的 NMS 输出仍是未来的工作。)*
 * ⚡ **零拷贝流水线（计划中）：** 设计 V4L2 与 HailoRT 之间的缓冲区交接，以避免不必要的帧拷贝。*（未来工作——需要本环境尚不具备的真实 V4L2/HailoRT 运行时。）*
 * 🌈 **硬件预处理（计划中）：** 使用树莓派的 ISP 进行实时缩放和像素格式转换，卸载原本每帧都需 CPU 承担的工作。*（未来工作，原因相同。）*
 * 🛠️ **动态配置：** 逐摄像头的分辨率、帧率和像素格式今天已经真实存在并会被校验（`config.py`）；曝光/增益控制需要真实的 V4L2 设备，属于未来工作。
