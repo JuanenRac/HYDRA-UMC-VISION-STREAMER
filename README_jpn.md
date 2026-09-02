@@ -103,13 +103,21 @@ HYDRA-UMC-VISION-STREAMER/
 │       ├── buffer.py           # 実際の有界バッファ（drop-oldest バックプレッシャー）
 │       ├── reconnect.py        # 実際の決定論的な再接続/バックオフポリシー
 │       ├── mediamtx_config.py  # MediaMTX paths.yml の生成
+│       ├── hailo_runtime.py    # 実際のHailoRT(hailo_platform)統合境界、遅延インポート
+│       ├── mjpeg_server.py     # 実際のMJPEGサーバー - USBウェブカメラの映像を実際にHTTP経由で配信
 │       └── main.py             # CLI エントリポイント（素の呼び出し + `config`/`stream`）
-├── tests/               # 実際の pytest スイート（config、pipeline、mediamtx、バッファ/再接続、CLI）
+├── tests/               # 実際の pytest スイート（config、pipeline、mediamtx、buffer、reconnect、hailo_runtime、mjpeg_server、CLI）
 ├── docs/                # ドキュメントとチューニングガイド
 ├── build/               # ビルド出力（ローカルの .venv もここに存在）
 ├── images/              # メディアと図表
-├── scripts/             # ユーティリティスクリプト
+├── systemd/
+│   ├── hydra-umc-vision-streamer@.service  # カメラごとにインスタンス化されるsystemdユニット
+│   └── cameras.env.example                 # インスタンスごとの環境ファイルの例
+├── tools/
+│   ├── build_test.py    # バージョンを増やさないビルドチェック
+│   └── ci_validate.py   # CI が使用するマニフェスト/CHANGELOG/ドキュメント検証
 ├── pyproject.toml       # パッケージメタデータ、依存関係、オドメーターバージョン
+├── bump_manifest_version.py # hydra-umc.project.json のバージョンをネイティブ版と同期(--sync)
 ├── bump_version.py      # オドメーター式バージョンインクリメント（build.sh/.bat が実行）
 ├── build.sh / build.bat # venv + editable インストール + コンパイルチェック + テスト
 ├── run.sh / run.bat     # ローカル venv からエントリポイントを実行

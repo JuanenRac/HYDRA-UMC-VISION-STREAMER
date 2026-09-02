@@ -98,13 +98,21 @@ HYDRA-UMC-VISION-STREAMER/
 │       ├── buffer.py           # 真实的有界缓冲区（drop-oldest 背压策略）
 │       ├── reconnect.py        # 真实的确定性重连/退避策略
 │       ├── mediamtx_config.py  # MediaMTX paths.yml 生成
+│       ├── hailo_runtime.py    # 真实的 HailoRT(hailo_platform)集成边界,延迟导入
+│       ├── mjpeg_server.py     # 真实的 MJPEG 服务器 - 真正通过 HTTP 提供 USB 摄像头画面
 │       └── main.py             # CLI 入口点（裸调用 + `config`/`stream`）
-├── tests/               # 真实 pytest 套件（config、pipeline、mediamtx、缓冲/重连、CLI）
+├── tests/               # 真实 pytest 套件（config、pipeline、mediamtx、buffer、reconnect、hailo_runtime、mjpeg_server、CLI）
 ├── docs/                # 文档与调优指南
 ├── build/               # 构建输出（本地 .venv 也存放于此）
 ├── images/              # 媒体与图表
-├── scripts/             # 实用脚本
+├── systemd/
+│   ├── hydra-umc-vision-streamer@.service  # 按摄像头实例化的 systemd 单元
+│   └── cameras.env.example                 # 每实例环境文件示例
+├── tools/
+│   ├── build_test.py    # 不递增版本号的构建检查
+│   └── ci_validate.py   # CI 使用的清单/CHANGELOG/文档校验
 ├── pyproject.toml       # 包元数据、依赖项、里程表版本号
+├── bump_manifest_version.py # 将 hydra-umc.project.json 的版本与原生版本同步(--sync)
 ├── bump_version.py      # 里程表式版本递增（由 build.sh/.bat 运行）
 ├── build.sh / build.bat # venv + 可编辑安装 + 编译检查 + 测试
 ├── run.sh / run.bat     # 从本地 venv 运行入口点

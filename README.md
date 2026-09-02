@@ -86,14 +86,22 @@ HYDRA-UMC-VISION-STREAMER/
 │       ├── mediamtx_config.py  # MediaMTX paths.yml generation
 │       ├── buffer.py           # Real bounded frame buffer (drop-oldest backpressure)
 │       ├── reconnect.py        # Real deterministic reconnect/backoff policy
+│       ├── hailo_runtime.py    # Real HailoRT (hailo_platform) inference integration boundary, lazily imported
+│       ├── mjpeg_server.py     # Real MJPEG server - actually serves a USB webcam's picture over HTTP
 │       └── main.py             # CLI entry point (bare invocation + `config`/`stream`)
-├── tests/               # Real pytest suite (config, pipeline, mediamtx, CLI)
+├── tests/               # Real pytest suite (config, pipeline, mediamtx, buffer, reconnect, hailo_runtime, mjpeg_server, CLI)
 ├── docs/                # Documentation and tuning guides
 ├── build/               # Build output (local .venv lives here too)
 ├── images/              # Media and diagrams
-├── scripts/             # Utility scripts
+├── systemd/
+│   ├── hydra-umc-vision-streamer@.service  # Per-camera instantiated systemd unit
+│   └── cameras.env.example                 # Example per-instance environment file
+├── tools/
+│   ├── build_test.py    # Non-versioning build/compile check (no version/CHANGELOG bump)
+│   └── ci_validate.py   # Manifest/CHANGELOG/docs validation used by CI
 ├── pyproject.toml       # Package metadata, dependencies, odometer version
-├── bump_version.py      # Odometer-style version bump (run by build.sh/.bat)
+├── bump_version.py      # Odometer-style native version bump (run by build.sh/.bat)
+├── bump_manifest_version.py # Syncs hydra-umc.project.json's version to the native one (--sync)
 ├── build.sh / build.bat # venv + editable install + compile-check + tests
 ├── run.sh / run.bat     # Runs the entry point from the local venv
 └── CHANGELOG.md         # Version-by-version history (odometer scheme, no dates)

@@ -86,13 +86,21 @@ HYDRA-UMC-VISION-STREAMER/
 │       ├── buffer.py           # Vero buffer limitato (contropressione drop-oldest)
 │       ├── reconnect.py        # Vera politica deterministica di riconnessione/backoff
 │       ├── mediamtx_config.py  # Generazione del paths.yml MediaMTX
+│       ├── hailo_runtime.py    # Vero limite di integrazione HailoRT (hailo_platform), importato in modo lazy
+│       ├── mjpeg_server.py     # Vero server MJPEG - serve realmente l'immagine di una webcam USB via HTTP
 │       └── main.py             # Entry point CLI (invocazione nuda + `config`/`stream`)
-├── tests/               # Suite pytest reale (config, pipeline, mediamtx, buffer/riconnessione, CLI)
+├── tests/               # Suite pytest reale (config, pipeline, mediamtx, buffer, reconnect, hailo_runtime, mjpeg_server, CLI)
 ├── docs/                # Documentazione e guide di tuning
 ├── build/               # Output di build (qui vive anche il .venv locale)
 ├── images/              # Media e diagrammi
-├── scripts/             # Script di utilità
+├── systemd/
+│   ├── hydra-umc-vision-streamer@.service  # Unità systemd istanziata per telecamera
+│   └── cameras.env.example                 # File di ambiente di esempio per istanza
+├── tools/
+│   ├── build_test.py    # Controllo build senza versionamento
+│   └── ci_validate.py   # Validazione manifest/CHANGELOG/docs usata dalla CI
 ├── pyproject.toml       # Metadati pacchetto, dipendenze, versione contachilometri
+├── bump_manifest_version.py # Sincronizza la versione di hydra-umc.project.json con quella nativa (--sync)
 ├── bump_version.py      # Incremento versione tipo contachilometri (build.sh/.bat)
 ├── build.sh / build.bat # venv + installazione editabile + compile-check + test
 ├── run.sh / run.bat     # Esegue l'entry point dal venv locale
