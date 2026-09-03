@@ -37,6 +37,7 @@ from __future__ import annotations
 
 import io
 import logging
+import sys
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -93,12 +94,19 @@ class MjpegCaptureSource:
 
         # A bare integer index (e.g. "0") opens /dev/videoN directly via
         # V4L2 - a real /dev/videoN path string works identically, cv2
-        # accepts either. CAP_V4L2 pinned explicitly rather than left to
-        # auto-detect, so this always opens the real Linux V4L2 backend
-        # this project targets, not some other backend guessed on a
-        # different host.
+        # accepts either. CAP_V4L2 pinned explicitly on the real Linux/CM5
+        # deployment target this project ships for, so production behavior
+        # here is unchanged and never guesses a backend. Off Linux (Mac/
+        # Windows dev machines, for local testing against a laptop webcam
+        # before real V4L2 hardware exists), cv2.CAP_V4L2 isn't available
+        # at all and isOpened() would fail unconditionally even against a
+        # real, working camera - CAP_ANY there lets OpenCV pick that
+        # platform's own real backend (e.g. DirectShow/MSMF on Windows)
+        # instead of silently failing to open a camera that is, in fact,
+        # present and working.
         index_or_path: str | int = int(self.device) if self.device.isdigit() else self.device
-        cap = cv2.VideoCapture(index_or_path, cv2.CAP_V4L2)
+        backend = cv2.CAP_V4L2 if sys.platform.startswith("linux") else cv2.CAP_ANY
+        cap = cv2.VideoCapture(index_or_path, backend)
         if not cap.isOpened():
             cap.release()
             raise CameraUnavailableError(f"Could not open camera device {self.device!r} - check it is connected and not in use by another process.")

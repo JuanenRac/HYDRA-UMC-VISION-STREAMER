@@ -10,13 +10,29 @@ by 1 instead (e.g. `0.0.9` -> `0.1.0`), the same carry cascading into
 `MAJOR` if `MINOR` also exceeds 9. `MAJOR` is otherwise only ever bumped by
 hand.
 
-## [Unreleased] - bounded, typed camera configuration
+## [Unreleased]
+
+## [0.0.9] - bounded, typed camera configuration + cross-platform capture backend
 
 - **`config.py`** - camera-list loading now rejects non-object entries,
   boolean dimensions and configurations with more than the documented eight
   cameras. Invalid data fails before it can generate a partial pipeline or
   MediaMTX relay configuration.
 - Added regression tests for each rejected input shape.
+- **`mjpeg_server.py`** - `stream serve`'s real V4L2 capture no longer
+  hardcodes `cv2.CAP_V4L2` unconditionally. That backend only exists on
+  Linux, so `MjpegCaptureSource.start()` failed to open any camera at all
+  on a non-Linux dev machine - not a hardware problem, a backend that
+  can't exist there. The real Linux/CM5 deployment target is unchanged
+  (still pins `CAP_V4L2` there); off Linux it now lets OpenCV pick that
+  platform's own real backend (`CAP_ANY`, e.g. DirectShow/MSMF on
+  Windows), which is what let a real laptop webcam be captured and
+  proxied through HYDRA-UMC-SERVER's own `/api/camera/:id/stream` for
+  the first time outside the CM5 itself.
+
+## [0.0.9]
+
+- Build version synchronized with `hydra-umc.project.json` and the repository-native version source.
 
 ## [0.0.8] - Real CM5 deployment for `stream serve`
 
