@@ -256,3 +256,44 @@ def serve_camera(device: str, addr: str, port: int, width: int, height: int, fps
             server.server_close()
     finally:
         source.stop()
+
+
+def discover_usb_devices(max_index: int = 10) -> list[dict]:
+    """Real USB/V4L2 device enumeration - probes indices `0..max_index-1`
+    with the exact same `cv2.VideoCapture`/backend-selection logic
+    `MjpegCaptureSource.start()` uses above (CAP_V4L2 on Linux/CM5,
+    CAP_ANY elsewhere), so an index this reports as available is
+    genuinely the same one `stream serve --device <index>` would open -
+    not a separate, possibly-inconsistent enumeration path. Reads one
+    real frame per candidate (not just `isOpened()`) since some backends
+    report a device as open even when nothing is actually attached and
+    the first real read fails - the same false-positive class this
+    project's own real hardware testing already ran into elsewhere.
+    Releases each device immediately after probing it, real or not, so
+    a caller (HYDRA-UMC-SERVER's own `GET /api/camera/discover-usb-
+    devices`, which shells out to this via `hydra-umc-vision-streamer
+    discover-usb`) never holds a device open longer than the probe
+    itself needs."""
+    try:
+        import cv2  # noqa: PLC0415 - deliberately lazy, see MjpegCaptureSource.start()'s own comment
+    except ImportError as exc:
+        raise RuntimeError(
+            "opencv-python (cv2) is not installed - install python3-opencv "
+            "(Debian/Raspberry Pi OS) to discover real cameras."
+        ) from exc
+
+    backend = cv2.CAP_V4L2 if sys.platform.startswith("linux") else cv2.CAP_ANY
+    found: list[dict] = []
+    for index in range(max_index):
+        cap = cv2.VideoCapture(index, backend)
+        try:
+            if not cap.isOpened():
+                continue
+            ok, frame = cap.read()
+            if not ok or frame is None:
+                continue
+            height, width = frame.shape[:2]
+            found.append({"index": index, "available": True, "width": int(width), "height": int(height)})
+        finally:
+            cap.release()
+    return found

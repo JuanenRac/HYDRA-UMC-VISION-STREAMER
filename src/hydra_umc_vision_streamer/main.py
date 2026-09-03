@@ -18,6 +18,7 @@ the `stream simulate` subcommand below.
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
@@ -25,7 +26,7 @@ from pathlib import Path
 from .buffer import FrameBuffer
 from .config import ConfigError, load_cameras
 from .mediamtx_config import build_mediamtx_paths_yaml, rtsp_url_for
-from .mjpeg_server import CameraUnavailableError, serve_camera
+from .mjpeg_server import CameraUnavailableError, discover_usb_devices, serve_camera
 from .pipeline import build_capture_pipeline
 from .reconnect import ConnectionState, ConnectionTracker, ReconnectPolicy
 
@@ -165,6 +166,22 @@ def _cmd_stream_serve(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_discover_usb(args: argparse.Namespace) -> int:
+    """Real USB/V4L2 device enumeration for a config UI's own "Discover
+    USB Devices" button (HYDRA-UMC-SERVER's `GET /api/camera/discover-
+    usb-devices` shells out to exactly this) - prints a real JSON array
+    to stdout, one entry per index that actually opened and produced a
+    real frame, so a caller never has to guess an index that isn't
+    really there."""
+    try:
+        devices = discover_usb_devices(max_index=args.max)
+    except RuntimeError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    print(json.dumps(devices))
+    return 0
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="hydra-umc-vision-streamer")
     subparsers = parser.add_subparsers(dest="command")
@@ -221,6 +238,12 @@ def _build_parser() -> argparse.ArgumentParser:
     real.add_argument("--height", type=int, default=720)
     real.add_argument("--fps", type=int, default=30)
     real.set_defaults(func=_cmd_stream_serve)
+
+    discover = subparsers.add_parser(
+        "discover-usb", help="Real USB/V4L2 device enumeration - prints a JSON array of real, working camera indices."
+    )
+    discover.add_argument("--max", type=int, default=10, help="Highest device index to probe, exclusive (default: 10)")
+    discover.set_defaults(func=_cmd_discover_usb)
 
     return parser
 

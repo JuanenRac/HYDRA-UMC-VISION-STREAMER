@@ -12,6 +12,29 @@ hand.
 
 ## [Unreleased]
 
+- **New `discover-usb` CLI subcommand** (`main.py`/`mjpeg_server.py`'s new
+  `discover_usb_devices()`) - real USB/V4L2 device enumeration for
+  `HYDRA-UMC-SERVER`'s new "Discover USB Devices" camera-config button
+  (that project's own `GET /api/camera/discover-usb-devices` shells out
+  to this exact subcommand). Probes indices `0..max-1` with the same
+  real `cv2.VideoCapture`/backend-selection logic `stream serve` already
+  uses (`CAP_V4L2` on Linux/CM5, `CAP_ANY` elsewhere) - an index this
+  reports as available is genuinely the same one `stream serve --device
+  <index>` would open. Reads a real frame per candidate, not just
+  `isOpened()` (some backends report a device as open even with nothing
+  attached - the first real read is the honest check), and always
+  releases every probed device immediately. Prints a plain JSON array
+  to stdout: `[{"index": 0, "available": true, "width":.., "height":..}]`.
+  Verified live against this dev machine's own real integrated camera
+  (found at index 0, 1280x720). Real test coverage
+  (`tests/test_mjpeg_server.py`: only real working indices returned, an
+  empty scan when none are available, every probed device released, and
+  the real "opencv-python not installed" degradation path) - also fixed
+  a real, pre-existing gap in that same test file while there:
+  `test_start_raises_clear_error_without_opencv` assumed cv2 is never
+  installed wherever this suite runs, which is false on this same dev
+  machine - now forces the import to fail via `sys.modules` instead of
+  relying on the environment.
 - **Documentation: the 2nd pair of real IP cameras is now also verified end
   to end.** `[0.1.0]`'s own entry below documented 2 of 4 real cameras
   working; the other 2 needed their own real RTSP path (`profile0`, found
@@ -22,6 +45,10 @@ hand.
   `.203`) opens the real camera and serves real MJPEG frames over HTTP.
   README (all 7 languages) and `docs/CLI_REFERENCE.md` updated to state
   4 of 4, not 2 of 4.
+
+## [0.1.1]
+
+- Build version synchronized with `hydra-umc.project.json` and the repository-native version source.
 
 ## [0.1.0] - real RTSP IP camera support
 
