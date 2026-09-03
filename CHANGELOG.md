@@ -38,7 +38,7 @@ hand.
   disconnect (never a crash risk the way `HYDRA-UMC-SERVER`'s own
   equivalent gap was - `ThreadingHTTPServer` isolates it to one request
   thread - just noisy).
-- **Verified end to end against real hardware (2026-09-03):** 2 of 4 real
+- **Verified end to end against real hardware:** 2 of 4 real
   IP cameras on the local network opened and streamed real H.264 frames
   through the complete real path - `config.py`'s `rtsp_url()` ->
   `mjpeg_server.py`'s new RTSP capture path -> `stream serve`'s own HTTP

@@ -11,8 +11,8 @@ deciding and validating what each of up to 8 cameras should capture at
 data validation, independent of the V4L2/RTSP/GStreamer runtime that
 would actually open the device.
 
-Two real source types, verified end to end against real hardware
-(2026-09-03): `usb` (a real V4L2 device via OpenCV, mjpeg_server.py's
+Two real source types, verified end to end against real hardware:
+`usb` (a real V4L2 device via OpenCV, mjpeg_server.py's
 original v0 - see that module's own header) and `ip` (a real RTSP camera,
 also via OpenCV - `cv2.VideoCapture()` already speaks RTSP through its
 own FFmpeg backend with no new dependency, confirmed against 2 real

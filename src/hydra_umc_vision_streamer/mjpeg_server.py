@@ -102,8 +102,8 @@ class MjpegCaptureSource:
             # through its own bundled FFmpeg backend, no new dependency.
             # CAP_FFMPEG pinned explicitly (not left to auto-detect) so
             # this never silently tries a V4L2/DirectShow backend against
-            # a URL string, on any OS. Verified end to end 2026-09-03
-            # against 2 real RTSP IP cameras (see config.py's own header).
+            # a URL string, on any OS. Verified end to end against 2 real
+            # RTSP IP cameras (see config.py's own header).
             index_or_path: str | int = self.device
             backend = cv2.CAP_FFMPEG
         else:
@@ -224,7 +224,7 @@ def make_handler(source: MjpegCaptureSource) -> type[BaseHTTPRequestHandler]:
                 # A client disconnecting mid-stream is normal, not an error
                 # to log - ConnectionAbortedError is Windows' own name for
                 # the same real condition BrokenPipeError/ConnectionResetError
-                # cover on Linux (confirmed live 2026-09-03: a curl client
+                # cover on Linux (confirmed live: a curl client
                 # cutting a real IP-camera stream short raised exactly this
                 # on this Windows dev machine, printing an unhandled
                 # traceback to stderr for a perfectly normal disconnect
