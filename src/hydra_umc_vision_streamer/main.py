@@ -206,9 +206,15 @@ def _build_parser() -> argparse.ArgumentParser:
     simulate.set_defaults(func=_cmd_stream_simulate)
 
     real = stream_sub.add_parser(
-        "serve", help="Real MJPEG capture+serve from an actual V4L2 device (mjpeg_server.py) - the v0 path pipeline.py/mediamtx_config.py above still name as future work."
+        "serve", help="Real MJPEG capture+serve from a USB/V4L2 device or a real RTSP IP camera (mjpeg_server.py) - the v0 path pipeline.py/mediamtx_config.py above still name as future work."
     )
-    real.add_argument("--device", required=True, help="V4L2 device: a bare index (e.g. 0 for /dev/video0) or a full device path")
+    real.add_argument(
+        "--device", required=True,
+        help="USB: a bare V4L2 index (e.g. 0 for /dev/video0) or a full device path. "
+             "IP camera: a full rtsp://user:pass@host:port/path URL (see CameraConfig.rtsp_url() "
+             "in config.py to build one from a persisted camera-list JSON entry instead of typing "
+             "credentials on the command line).",
+    )
     real.add_argument("--addr", default="127.0.0.1", help="Address to bind the MJPEG HTTP server to (default: 127.0.0.1)")
     real.add_argument("--port", type=int, required=True, help="Port to serve the MJPEG stream on")
     real.add_argument("--width", type=int, default=1280)

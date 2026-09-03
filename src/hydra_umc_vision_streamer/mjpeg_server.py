@@ -56,10 +56,14 @@ class CameraUnavailableError(RuntimeError):
 
 
 class MjpegCaptureSource:
-    """Owns one real V4L2 device and a background thread that continuously
-    reads and JPEG-encodes frames into a bounded FrameBuffer (buffer.py) -
-    real backpressure: a device producing frames faster than any client
-    reads them cannot grow this process's memory without bound.
+    """Owns one real capture source - a USB/V4L2 device OR a real RTSP IP
+    camera (`device` starting with `rtsp://`, e.g. built from
+    CameraConfig.rtsp_url() - see config.py's own header for the real IP
+    cameras this was verified against) - and a background thread that
+    continuously reads and JPEG-encodes frames into a bounded FrameBuffer
+    (buffer.py) - real backpressure: a device producing frames faster
+    than any client reads them cannot grow this process's memory without
+    bound.
 
     Lazily imports cv2 (opencv-python / python3-opencv on Debian): this
     module is importable, and every non-capture code path in this project
@@ -92,27 +96,45 @@ class MjpegCaptureSource:
                 "(Debian/Raspberry Pi OS) to actually capture from a real camera."
             ) from exc
 
-        # A bare integer index (e.g. "0") opens /dev/videoN directly via
-        # V4L2 - a real /dev/videoN path string works identically, cv2
-        # accepts either. CAP_V4L2 pinned explicitly on the real Linux/CM5
-        # deployment target this project ships for, so production behavior
-        # here is unchanged and never guesses a backend. Off Linux (Mac/
-        # Windows dev machines, for local testing against a laptop webcam
-        # before real V4L2 hardware exists), cv2.CAP_V4L2 isn't available
-        # at all and isOpened() would fail unconditionally even against a
-        # real, working camera - CAP_ANY there lets OpenCV pick that
-        # platform's own real backend (e.g. DirectShow/MSMF on Windows)
-        # instead of silently failing to open a camera that is, in fact,
-        # present and working.
-        index_or_path: str | int = int(self.device) if self.device.isdigit() else self.device
-        backend = cv2.CAP_V4L2 if sys.platform.startswith("linux") else cv2.CAP_ANY
+        is_ip_camera = self.device.startswith("rtsp://")
+        if is_ip_camera:
+            # A real RTSP IP camera - cv2.VideoCapture already speaks RTSP
+            # through its own bundled FFmpeg backend, no new dependency.
+            # CAP_FFMPEG pinned explicitly (not left to auto-detect) so
+            # this never silently tries a V4L2/DirectShow backend against
+            # a URL string, on any OS. Verified end to end 2026-09-03
+            # against 2 real RTSP IP cameras (see config.py's own header).
+            index_or_path: str | int = self.device
+            backend = cv2.CAP_FFMPEG
+        else:
+            # A bare integer index (e.g. "0") opens /dev/videoN directly via
+            # V4L2 - a real /dev/videoN path string works identically, cv2
+            # accepts either. CAP_V4L2 pinned explicitly on the real Linux/CM5
+            # deployment target this project ships for, so production behavior
+            # here is unchanged and never guesses a backend. Off Linux (Mac/
+            # Windows dev machines, for local testing against a laptop webcam
+            # before real V4L2 hardware exists), cv2.CAP_V4L2 isn't available
+            # at all and isOpened() would fail unconditionally even against a
+            # real, working camera - CAP_ANY there lets OpenCV pick that
+            # platform's own real backend (e.g. DirectShow/MSMF on Windows)
+            # instead of silently failing to open a camera that is, in fact,
+            # present and working.
+            index_or_path = int(self.device) if self.device.isdigit() else self.device
+            backend = cv2.CAP_V4L2 if sys.platform.startswith("linux") else cv2.CAP_ANY
         cap = cv2.VideoCapture(index_or_path, backend)
         if not cap.isOpened():
             cap.release()
-            raise CameraUnavailableError(f"Could not open camera device {self.device!r} - check it is connected and not in use by another process.")
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
-        cap.set(cv2.CAP_PROP_FPS, self.fps)
+            kind = "IP camera" if is_ip_camera else "camera device"
+            raise CameraUnavailableError(f"Could not open {kind} {self.device!r} - check it is connected/reachable, its credentials are correct, and it is not in use by another process.")
+        if not is_ip_camera:
+            # A real RTSP camera dictates its own real resolution/fps -
+            # cap.set() against an RTSP stream is a real no-op on most
+            # camera firmware (silently ignored, sometimes returns False),
+            # not a genuine control this source has over that hardware the
+            # way it does for a real local V4L2 device.
+            cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
+            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
+            cap.set(cv2.CAP_PROP_FPS, self.fps)
         self._cap = cap
         self._thread = threading.Thread(target=self._capture_loop, name=f"mjpeg-capture-{self.device}", daemon=True)
         self._thread.start()
@@ -198,8 +220,19 @@ def make_handler(source: MjpegCaptureSource) -> type[BaseHTTPRequestHandler]:
                     self.wfile.write(header)
                     self.wfile.write(frame)
                     self.wfile.write(b"\r\n")
-            except (BrokenPipeError, ConnectionResetError):
-                pass  # a client disconnecting mid-stream is normal, not an error to log
+            except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+                # A client disconnecting mid-stream is normal, not an error
+                # to log - ConnectionAbortedError is Windows' own name for
+                # the same real condition BrokenPipeError/ConnectionResetError
+                # cover on Linux (confirmed live 2026-09-03: a curl client
+                # cutting a real IP-camera stream short raised exactly this
+                # on this Windows dev machine, printing an unhandled
+                # traceback to stderr for a perfectly normal disconnect
+                # until this was added - ThreadingHTTPServer still isolates
+                # it to the one request thread either way, so this was never
+                # a crash risk the way HYDRA-UMC-SERVER's own equivalent gap
+                # was, just noisy).
+                pass
 
     return Handler
 

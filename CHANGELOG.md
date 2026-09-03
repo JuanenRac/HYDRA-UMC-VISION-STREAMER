@@ -12,6 +12,52 @@ hand.
 
 ## [Unreleased]
 
+## [0.1.0] - real RTSP IP camera support
+
+- **`config.py`** - `CameraConfig` now has a real `source_type` field
+  (`"usb"`, the default matching every existing config file unchanged, or
+  `"ip"`), with `host`/`rtsp_port`/`rtsp_path`/`username`/`password` for
+  the `"ip"` case and a real `rtsp_url()` builder (userinfo
+  percent-encoded via `urllib.parse.quote`, so a real password containing
+  `@`/`:`/`/` can never be misparsed as a second URL delimiter). The
+  duplicate-connection check now compares `host:port+path` for IP cameras
+  instead of the always-empty `device` field, so a real second IP camera
+  is never falsely flagged as a duplicate of the first, while the same
+  physical camera's own main/sub streams (same host, different
+  `rtsp_path`) correctly are not treated as duplicates either.
+- **`mjpeg_server.py`** - `MjpegCaptureSource`/`stream serve` now open a
+  real RTSP IP camera the same way they already open a real USB/V4L2
+  device: a `device` string starting with `rtsp://` picks
+  `cv2.CAP_FFMPEG` (OpenCV's own bundled RTSP support, no new
+  dependency) instead of the V4L2/CAP_ANY logic that only applies to a
+  local device. Also fixed a real, live-reproduced gap in the same
+  handler: a client disconnecting mid-stream on Windows raises
+  `ConnectionAbortedError`, which the existing
+  `except (BrokenPipeError, ConnectionResetError)` didn't cover -
+  printed an unhandled traceback to stderr for a perfectly normal
+  disconnect (never a crash risk the way `HYDRA-UMC-SERVER`'s own
+  equivalent gap was - `ThreadingHTTPServer` isolates it to one request
+  thread - just noisy).
+- **Verified end to end against real hardware (2026-09-03):** 2 of 4 real
+  IP cameras on the local network opened and streamed real H.264 frames
+  through the complete real path - `config.py`'s `rtsp_url()` ->
+  `mjpeg_server.py`'s new RTSP capture path -> `stream serve`'s own HTTP
+  MJPEG server -> `HYDRA-UMC-SERVER`'s real `GET /api/camera/:id/stream`
+  proxy (8.5MB of real frames over 4s). Both real cameras share
+  `Hipcam RealServer/V1.0` RTSP firmware, main stream on `/11`, sub
+  stream on `/12`. The other 2 (different RTSP/HTTP firmware,
+  `H264DVR 1.0`) rejected every credential/path combination tried
+  (401 Unauthorized) - real, not-yet-resolved; needs either the real
+  admin-panel credentials for that specific camera or RTSP explicitly
+  enabled there first, not something to guess further at.
+- Real test coverage added to `tests/test_config.py` (10 new cases:
+  valid IP camera parsing, `rtsp_url()` with and without credentials,
+  percent-encoding a password with special characters, missing
+  host/rtsp_path, invalid port, invalid source_type, USB+IP cameras
+  coexisting in one config file, and the corrected duplicate-connection
+  check both firing on a real duplicate and NOT firing on the same
+  camera's own main/sub streams).
+
 ## [0.0.9] - bounded, typed camera configuration + cross-platform capture backend
 
 - **`config.py`** - camera-list loading now rejects non-object entries,
