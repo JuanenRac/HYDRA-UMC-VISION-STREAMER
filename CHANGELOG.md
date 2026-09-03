@@ -12,6 +12,17 @@ hand.
 
 ## [Unreleased]
 
+- **Documentation: the 2nd pair of real IP cameras is now also verified end
+  to end.** `[0.1.0]`'s own entry below documented 2 of 4 real cameras
+  working; the other 2 needed their own real RTSP path (`profile0`, found
+  on the camera's own config screen) rather than the first pair's `/11` -
+  not a credential or firmware issue as that entry's own wording implied.
+  Verified for real: `stream serve --device
+  "rtsp://admin:admin123456@192.168.0.204:8554/profile0"` (and the same for
+  `.203`) opens the real camera and serves real MJPEG frames over HTTP.
+  README (all 7 languages) and `docs/CLI_REFERENCE.md` updated to state
+  4 of 4, not 2 of 4.
+
 ## [0.1.0] - real RTSP IP camera support
 
 - **`config.py`** - `CameraConfig` now has a real `source_type` field

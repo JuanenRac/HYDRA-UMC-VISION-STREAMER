@@ -27,6 +27,7 @@ This is one of the 4 children of **[HYDRA-UMC-VISION-NODE](https://github.com/Ju
 ### Key Points
 
 * ✅ **Real v0 - config, pipeline, and relay generation:** `config.py` validates a per-camera JSON config (device, resolution, fps, format); `pipeline.py` generates the exact GStreamer pipeline description for a camera; `mediamtx_config.py` generates the matching MediaMTX `paths.yml`. Exposed via `config validate`/`config gst`/`config mediamtx` below - no GStreamer runtime, V4L2, or physical camera needed to run or test any of it.
+* 📷 **Real v0 - USB and RTSP IP camera capture+serve:** `mjpeg_server.py`'s `stream serve` actually opens a camera and serves real MJPEG over HTTP - a USB/V4L2 device (`--device 0`) or a real RTSP IP camera (`--device rtsp://user:pass@host:port/path`, via OpenCV's `cv2.CAP_FFMPEG` backend, no extra dependency). `config.py`'s `CameraConfig` now carries a real `source_type` (`"usb"` default, or `"ip"` with `host`/`rtsp_port`/`rtsp_path`/`username`/`password` and a real, percent-encoded `rtsp_url()` builder). Verified end to end against real hardware: all 4 real IP cameras on the local network opened and streamed real MJPEG/H.264 frames through this exact path (the 2nd pair needed their own real RTSP path, `profile0`, found on the camera's own config screen - a different path than the first pair's `/11`, not a credential or firmware issue).
 * 🔁 **Real v0 - bounded buffering and reconnection:** `buffer.py`'s `FrameBuffer` is a fixed-capacity queue that drops the OLDEST frame (never the newest) once full - the real backpressure policy a live relay needs so a slow consumer can never make this process's memory grow without bound. `reconnect.py`'s `ConnectionTracker` is a real, deterministic exponential-backoff reconnect policy for a dropped camera/relay link. Exposed via `stream simulate` below - fully testable without GStreamer or a physical camera.
 * 📡 **RTSP/WebRTC Support (partially planned):** the RTSP relay path (`rtspclientsink` → MediaMTX) is designed and its config is generated for real above; actually running it needs the GStreamer runtime this environment doesn't have. WebRTC output remains fully planned.
 * ⚡ **Zero-Copy Pipeline (planned):** buffer handoff between V4L2 and HailoRT designed to avoid unnecessary frame copies. *(future work - needs the real V4L2/HailoRT runtime this environment doesn't have.)*
@@ -35,7 +36,7 @@ This is one of the 4 children of **[HYDRA-UMC-VISION-NODE](https://github.com/Ju
 * 🛠️ **Dynamic Configuration:** per-camera resolution, framerate, and pixel format are real and validated today (`config.py`); exposure/gain control needs the real V4L2 device and is future work.
 * 🧩 **Why it exists as its own project:** capture/ISP tuning is a different skill and a different failure domain than model inference or safety logic - keeping it in its own process means a capture bug cannot take down [HYDRA-UMC-SAFETY-ZONES](https://github.com/JuanenRac/HYDRA-UMC-SAFETY-ZONES), and the two can be developed/tested independently.
 
-**Honesty check - what actually runs today:** the config validation, GStreamer pipeline description generation, MediaMTX relay config generation, the real buffer/reconnect policy, and the HailoRT integration boundary (`config.py`, `pipeline.py`, `mediamtx_config.py`, `buffer.py`, `reconnect.py`, `hailo_runtime.py`) are real and tested (65 tests). None of it opens a V4L2 device, imports GStreamer, or talks to a physical camera or Hailo-8 module - actually running the generated pipeline and real inference needs that real runtime and hardware, which this environment doesn't have. See [`CHANGELOG.md`](CHANGELOG.md) for exactly what has shipped so far, and "Current Status & Next Steps" below for what remains open.
+**Honesty check - what actually runs today:** the config validation, GStreamer pipeline description generation, MediaMTX relay config generation, the real buffer/reconnect policy, and the HailoRT integration boundary (`config.py`, `pipeline.py`, `mediamtx_config.py`, `buffer.py`, `reconnect.py`, `hailo_runtime.py`) are real and tested (75 tests). `stream serve` (`mjpeg_server.py`) is the one path that does open a real camera - a USB/V4L2 device or a real RTSP IP camera - and has been verified against real IP cameras on the local network; it has not yet been verified against a physically-connected USB camera. The full GStreamer/PyGObject pipeline `config gst`/`config mediamtx` only generate the description for, and real Hailo-8 inference, still need that real runtime and a real Hailo-8 module, which this environment doesn't have. See [`CHANGELOG.md`](CHANGELOG.md) for exactly what has shipped so far, and "Current Status & Next Steps" below for what remains open.
 
 ---
 
@@ -87,7 +88,7 @@ HYDRA-UMC-VISION-STREAMER/
 │       ├── buffer.py           # Real bounded frame buffer (drop-oldest backpressure)
 │       ├── reconnect.py        # Real deterministic reconnect/backoff policy
 │       ├── hailo_runtime.py    # Real HailoRT (hailo_platform) inference integration boundary, lazily imported
-│       ├── mjpeg_server.py     # Real MJPEG server - actually serves a USB webcam's picture over HTTP
+│       ├── mjpeg_server.py     # Real MJPEG server - actually serves a USB webcam's or RTSP IP camera's picture over HTTP
 │       └── main.py             # CLI entry point (bare invocation + `config`/`stream`)
 ├── tests/               # Real pytest suite (config, pipeline, mediamtx, buffer, reconnect, hailo_runtime, mjpeg_server, CLI)
 ├── docs/                # Documentation and tuning guides
@@ -130,7 +131,7 @@ No `hardware/`, `firmware/`, `os/` or `models/` folder - see "Advanced Technical
 2. **Virtual environment** - creates `.venv/` if missing; reuses it otherwise.
 3. **Editable install** - `pip install -e ".[dev]"` so `src/` edits take effect immediately, installs `pytest`, and registers the `hydra-umc-vision-streamer` console entry point.
 4. **Compile-check** - `python -m compileall -q src` byte-compiles every file under `src/`, catching syntax errors ecosystem-wide even in files `main.py` never imports.
-5. **Real test suite** - `python -m pytest tests/ -q` (65 tests covering config, pipeline, MediaMTX generation, the buffer/reconnect policy, the HailoRT integration boundary, and the CLI).
+5. **Real test suite** - `python -m pytest tests/ -q` (75 tests covering config (including real IP-camera parsing and `rtsp_url()` percent-encoding), pipeline, MediaMTX generation, the buffer/reconnect policy, the HailoRT integration boundary, the MJPEG capture+serve path, and the CLI).
 
 `set -euo pipefail` stops the script at the first failing step; the build only reports success if all 5 pass.
 
@@ -158,6 +159,16 @@ Real example - validate a camera config, generate its GStreamer pipeline, and ge
 #     source: publisher
 #   cam1:
 #     source: publisher
+```
+
+Real example - actually capture+serve a camera as MJPEG over HTTP (the one subcommand that opens a real device):
+
+```bash
+# USB/V4L2 device
+./run.sh stream serve --device 0 --port 8090
+
+# Real RTSP IP camera (verified against real hardware - see CHANGELOG.md)
+./run.sh stream serve --device "rtsp://admin:secret@192.168.0.211:554/11" --port 8090 --width 1920 --height 1080 --fps 15
 ```
 
 Real example - simulate a slow consumer against a bounded buffer, and a dropped connection driven through the real reconnect policy:
@@ -190,7 +201,7 @@ run.bat
 
 ## 🚀 Current Status & Next Steps
 
-**What works today:** per-camera config validation, GStreamer pipeline description generation, and MediaMTX relay config generation (`config.py`, `pipeline.py`, `mediamtx_config.py`), a real, provably-bounded frame buffer and a real deterministic reconnect policy (`buffer.py`, `reconnect.py`, `stream simulate`), a real HailoRT integration boundary (`hailo_runtime.py`) ready for a real Hailo-8 module the moment it plugs in, and a real v0 capture+serve path (`mjpeg_server.py`, `stream serve`) that opens a real V4L2 device via OpenCV and serves real MJPEG over HTTP - installable on a CM5 via `HYDRA-UMC-OS`'s own `provisioning/install_vision_streamer.sh` (one systemd instance per admin-assigned camera slot, `systemd/hydra-umc-vision-streamer@.service`) and already consumed live by `HYDRA-UMC-SERVER`'s `GET /api/camera/:id/stream` proxy and `HYDRA-UMC-STUDIO`'s camera views - 65 tests total, plus a real, installable Python package with a verified entry point and an odometer-style version bump wired into the build. See [`CHANGELOG.md`](CHANGELOG.md) for the captured build/run output.
+**What works today:** per-camera config validation, GStreamer pipeline description generation, and MediaMTX relay config generation (`config.py`, `pipeline.py`, `mediamtx_config.py`), a real, provably-bounded frame buffer and a real deterministic reconnect policy (`buffer.py`, `reconnect.py`, `stream simulate`), a real HailoRT integration boundary (`hailo_runtime.py`) ready for a real Hailo-8 module the moment it plugs in, and a real v0 capture+serve path (`mjpeg_server.py`, `stream serve`) that opens a real USB/V4L2 device **or a real RTSP IP camera** (`source_type: "ip"` in `config.py`, `cv2.CAP_FFMPEG` in `mjpeg_server.py`) via OpenCV and serves real MJPEG over HTTP - installable on a CM5 via `HYDRA-UMC-OS`'s own `provisioning/install_vision_streamer.sh` (one systemd instance per admin-assigned camera slot, `systemd/hydra-umc-vision-streamer@.service`) and already consumed live by `HYDRA-UMC-SERVER`'s `GET /api/camera/:id/stream` proxy and `HYDRA-UMC-STUDIO`'s camera views. The IP camera path is verified end to end against real hardware: all 4 real IP cameras on the local network opened and streamed real frames through the complete real path - 75 tests total, plus a real, installable Python package with a verified entry point and an odometer-style version bump wired into the build. See [`CHANGELOG.md`](CHANGELOG.md) for the captured build/run output.
 
 **What is still open, in no particular order, with no committed timeline, and blocked on real hardware:**
 
@@ -198,7 +209,7 @@ run.bat
 * Hardware ISP resize/format conversion (needs the real CM5 ISP).
 * Actually running inference through `hailo_runtime.py` (needs a real Hailo-8 module and a real compiled `.hef`), and parsing that real model's NMS output format - deliberately not guessed at without the device to verify it against.
 * WebRTC output, and per-camera exposure/gain control (needs the real V4L2 device).
-* `stream serve` has not yet been verified against a real, physically-connected USB camera - only against `cv2.VideoCapture` mocked at the module boundary (see `tests/test_mjpeg_server.py`).
+* `stream serve` has not yet been verified against a real, physically-connected USB camera - only against a real RTSP IP camera and against `cv2.VideoCapture` mocked at the module boundary (see `tests/test_mjpeg_server.py`).
 
 ---
 
@@ -288,6 +299,7 @@ This project is part of the HYDRA-UMC robotics ecosystem by the same author (Jua
 
 ## 📚 Documentation & Community
 
+- **[docs/CLI_REFERENCE.md](docs/CLI_REFERENCE.md)** — every subcommand (`config validate`/`gst`/`mediamtx`, `stream simulate`/`serve`, including real USB and RTSP IP camera examples), with real captured output.
 - **[CONTRIBUTING.md](CONTRIBUTING.md)** — tech stack and coding guidelines for a pull request.
 - **[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)** — the standards of behavior expected in this community.
 - **[SECURITY.md](SECURITY.md)** — how to report a vulnerability, and this project's own real security focus areas.

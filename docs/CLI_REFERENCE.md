@@ -3,13 +3,17 @@
 `hydra-umc-vision-streamer` is a Python console script
 (`src/hydra_umc_vision_streamer/main.py`, installed as an entry point via
 `pyproject.toml`). What's real in v0: per-camera configuration parsing
-and validation, generating the GStreamer pipeline description and the
-MediaMTX relay config from that configuration, and the actual
-backpressure/reconnection policy a live relay needs — all independent of
-the V4L2/GStreamer/Hailo-8 runtime and physical USB cameras this
-environment doesn't have. Actually opening a device and running the
-generated pipeline is still future work. Every example below was
-captured from a real run of the installed CLI — not written from memory.
+and validation (including a real `"ip"` `source_type` for RTSP cameras,
+alongside the default `"usb"`), generating the GStreamer pipeline
+description and the MediaMTX relay config from that configuration, the
+actual backpressure/reconnection policy a live relay needs, and a real
+MJPEG capture+serve path (`stream serve`) that actually opens a USB/V4L2
+device or a real RTSP IP camera via OpenCV and serves the picture over
+HTTP — verified end to end against real IP cameras on the local network.
+Still not implemented: the full GStreamer/PyGObject pipeline
+`config gst`/`config mediamtx` describe, and real Hailo-8 inference.
+Every example below was captured from a real run of the installed CLI —
+not written from memory.
 
 ## Usage
 
@@ -30,7 +34,7 @@ Bare invocation (no subcommand) prints identity/version/role and exits `0`:
 
 ```
 $ hydra-umc-vision-streamer
-HYDRA-UMC-VISION-STREAMER v0.0.4
+HYDRA-UMC-VISION-STREAMER v0.1.0
 Optimized GStreamer capture/pre-processing pipeline for up to 8x USB 3.0 camera streams feeding the Hailo-8 NPU.
 ```
 
@@ -88,6 +92,39 @@ error: could not read config does_not_exist.json: [Errno 2] No such file or dire
 $ echo $?
 1
 ```
+
+A real RTSP IP camera entry (`source_type: "ip"`) alongside a USB one in
+the same config file — `device` is only meaningful for `"usb"` cameras
+(the default `source_type` when the field is omitted, matching every
+config file written before this field existed), so it prints empty for
+an IP camera; the real connection identity for a duplicate check is
+`host`/`rtsp_port`/`rtsp_path` instead:
+
+```json
+// cameras_mixed.json
+[
+  {"name": "cam0", "device": "/dev/video0", "width": 1920, "height": 1080, "fps": 30, "format": "MJPG"},
+  {"name": "cam1", "source_type": "ip", "host": "192.168.0.211", "rtsp_port": 554,
+   "rtsp_path": "/11", "username": "admin", "password": "secret",
+   "width": 1920, "height": 1080, "fps": 15, "format": "H264"}
+]
+```
+
+```
+$ hydra-umc-vision-streamer config validate --config cameras_mixed.json
+2 camera(s) in cameras_mixed.json
+  cam0: /dev/video0 1920x1080@30 MJPG
+  cam1:  1920x1080@15 H264
+config OK
+$ echo $?
+0
+```
+
+`CameraConfig.rtsp_url()` builds the real, correctly percent-encoded
+connection URL for `cam1` above
+(`rtsp://admin:secret@192.168.0.211:554/11`) — the same URL `stream serve
+--device` below expects for an IP camera, and the same one
+`mjpeg_server.py` opens via OpenCV's `cv2.CAP_FFMPEG` backend.
 
 ### `config gst --config PATH --camera NAME [--rtsp-base URL]`
 
@@ -267,6 +304,67 @@ would print a `FAIL:` line to stderr and exit `1` — a real bug in the
 bounded buffer itself, not a simulation parameter problem. Every case
 above stays within bound, so every one exits `0`.
 
+### `stream serve --device DEVICE --port PORT [--addr ADDR] [--width W] [--height H] [--fps FPS]`
+
+```
+$ hydra-umc-vision-streamer stream serve -h
+usage: hydra-umc-vision-streamer stream serve [-h] --device DEVICE
+                                              [--addr ADDR] --port PORT
+                                              [--width WIDTH]
+                                              [--height HEIGHT] [--fps FPS]
+
+options:
+  -h, --help       show this help message and exit
+  --device DEVICE  USB: a bare V4L2 index (e.g. 0 for /dev/video0) or a full
+                   device path. IP camera: a full
+                   rtsp://user:pass@host:port/path URL (see
+                   CameraConfig.rtsp_url() in config.py to build one from a
+                   persisted camera-list JSON entry instead of typing
+                   credentials on the command line).
+  --addr ADDR      Address to bind the MJPEG HTTP server to (default:
+                   127.0.0.1)
+  --port PORT      Port to serve the MJPEG stream on
+  --width WIDTH
+  --height HEIGHT
+  --fps FPS
+```
+
+This is the one subcommand that actually opens a real camera — everything
+above it (`config`/`stream simulate`) is real, hardware-independent
+generation or simulation. `mjpeg_server.py`'s `MjpegCaptureSource` opens
+`--device` through OpenCV: a `device` string starting with `rtsp://`
+picks OpenCV's bundled `cv2.CAP_FFMPEG` backend (a real RTSP IP camera,
+no extra dependency); anything else is treated as a local USB/V4L2
+device (a bare index or a device path) opened via the platform's default
+backend. Either way it serves a real MJPEG stream over HTTP at
+`http://ADDR:PORT/`, frame by frame, until the client disconnects or the
+process is stopped.
+
+USB camera:
+
+```bash
+$ hydra-umc-vision-streamer stream serve --device 0 --port 8090
+```
+
+RTSP IP camera — verified end to end against real hardware on the local
+network (all 4 real IP cameras opened and streamed real MJPEG/H.264
+frames through this exact path; the 2nd pair needed their own real
+RTSP path, `profile0`, rather than the first pair's `/11`):
+
+```bash
+$ hydra-umc-vision-streamer stream serve --device "rtsp://admin:secret@192.168.0.211:554/11" --port 8090 --width 1920 --height 1080 --fps 15
+```
+
+A client disconnecting mid-stream (closing the browser tab, a dropped
+network link) is handled as a normal, expected event — `BrokenPipeError`,
+`ConnectionResetError`, and (Windows-specific) `ConnectionAbortedError`
+all end that one request thread quietly rather than printing an
+unhandled traceback.
+
+Not yet verified against a real, physically-connected USB camera — only
+against a real RTSP IP camera and against `cv2.VideoCapture` mocked at
+the module boundary in `tests/test_mjpeg_server.py`.
+
 ## Exit codes
 
 | Code | Meaning |
@@ -276,8 +374,12 @@ above stays within bound, so every one exits `0`.
 
 ## Out of scope for this CLI
 
-Actually opening a V4L2 device, running the generated GStreamer pipeline
-against a real USB camera, and feeding the Hailo-8 NPU are described in
-the project README's own roadmap but are not implemented yet — they need
-real USB 3.0 cameras and the GStreamer/V4L2 runtime this environment
-does not have.
+`stream serve` above already opens a real USB/V4L2 device or a real RTSP
+IP camera and serves real MJPEG over HTTP. Still not implemented, and
+described in the project README's own roadmap: running the full
+GStreamer/PyGObject pipeline that `config gst`/`config mediamtx` only
+generate the description for, the hardware ISP resize/format conversion,
+and feeding a real Hailo-8 NPU through `hailo_runtime.py` — these need
+the GStreamer/PyGObject runtime and a real Hailo-8 module this
+environment does not have. `stream serve` itself is also not yet
+verified against a physically-connected USB camera (see above).
