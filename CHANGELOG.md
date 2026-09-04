@@ -46,6 +46,23 @@ hand.
   README (all 7 languages) and `docs/CLI_REFERENCE.md` updated to state
   4 of 4, not 2 of 4.
 
+## [0.1.3]
+
+- **New real `Dockerfile`**, closing the real gap HYDRA-UMC-VISION-NODE's
+  own `docker-compose.yml` named ("still skeleton-stage... no Dockerfile
+  of their own"). Deliberately NOT the official `python:*-slim` image:
+  this project's own `pyproject.toml` already documents why OpenCV is
+  installed via the Debian `python3-opencv` apt package rather than
+  pip's `opencv-python` (no source build on ARM, the real CM5 target) -
+  a `debian:bookworm-slim` base + a venv with `--system-site-packages`
+  inherits that apt-installed `cv2` while still isolating this
+  project's own install, without needing Debian's
+  `--break-system-packages`. `--device`/`--port` are real, required,
+  per-invocation CLI flags (one real camera, one real container) - this
+  image ships no default beyond `--help`; HYDRA-UMC-VISION-NODE's own
+  `docker-compose.yml` now sets a real `command:` per camera instead.
+  Not build-tested (no Docker runtime on this dev machine).
+
 ## [0.1.2]
 
 - **Fixed a real bug in `validate_frame_matches_input()`** (found during an
