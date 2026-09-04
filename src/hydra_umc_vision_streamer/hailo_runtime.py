@@ -176,8 +176,16 @@ def validate_frame_matches_input(
     """
     expected = expected_input_frame_bytes(model.input_shape, pixel_format)
     actual = camera.width * camera.height * _BYTES_PER_PIXEL.get(pixel_format, 0)
-    if expected != actual:
-        height, width, _channels = model.input_shape
+    height, width, _channels = model.input_shape
+    # Real bug found in audit: comparing only the total byte count let a
+    # TRANSPOSED resolution through silently - a camera misconfigured as
+    # e.g. 1080x1920 against a model that expects 1920x1080 has the exact
+    # same byte count (both are 1920*1080*channels), so `expected !=
+    # actual` alone never caught it, even though the frame is genuinely
+    # portrait when the model expects landscape. Comparing width/height
+    # individually catches both the swapped-dimension case and any other
+    # real mismatch the byte-count check already caught.
+    if expected != actual or camera.width != width or camera.height != height:
         raise FrameShapeError(
             f"camera {camera.name!r} is configured at {camera.width}x{camera.height}, but "
             f"model {model.hef_path} expects {width}x{height} ({expected} bytes/frame vs "

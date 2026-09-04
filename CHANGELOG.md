@@ -46,6 +46,23 @@ hand.
   README (all 7 languages) and `docs/CLI_REFERENCE.md` updated to state
   4 of 4, not 2 of 4.
 
+## [0.1.2]
+
+- **Fixed a real bug in `validate_frame_matches_input()`** (found during an
+  ecosystem-wide bug audit): the pre-flight check comparing a camera's
+  configured resolution against a loaded Hailo model's expected input
+  tensor only compared TOTAL byte counts, never width against width and
+  height against height individually - a camera misconfigured with its
+  width/height transposed relative to what the model expects (e.g.
+  `1080x1920` against a model expecting `1920x1080`) has the exact same
+  byte count either way, so the check let a genuinely transposed frame
+  through silently. Now compares width and height explicitly in addition
+  to the byte-count check. Real regression test added
+  (`test_validate_frame_matches_input_rejects_a_transposed_resolution`).
+  Not yet reachable from a live pipeline (Hailo-8 hardware integration is
+  still pending), so no real deployment was ever affected by this - caught
+  before it could be.
+
 ## [0.1.1]
 
 - Build version synchronized with `hydra-umc.project.json` and the repository-native version source.

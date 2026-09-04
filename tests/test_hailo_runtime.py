@@ -80,3 +80,15 @@ def test_validate_frame_matches_input_resolution_mismatch():
     model = _model(input_shape=(1080, 1920, 3))
     with pytest.raises(FrameShapeError, match="cam0.*configured at 640x480"):
         validate_frame_matches_input(camera, model)
+
+
+def test_validate_frame_matches_input_rejects_a_transposed_resolution():
+    # Real bug found in audit: a camera configured 1080x1920 (portrait)
+    # against a model expecting 1920x1080 (landscape) has the exact same
+    # total byte count (1920*1080*3 either way) - a check that only
+    # compared byte totals let this through silently even though the
+    # frame is genuinely transposed relative to what the model expects.
+    camera = _cam(width=1080, height=1920)
+    model = _model(input_shape=(1080, 1920, 3))  # expects height=1080, width=1920
+    with pytest.raises(FrameShapeError, match="cam0.*configured at 1080x1920"):
+        validate_frame_matches_input(camera, model)
