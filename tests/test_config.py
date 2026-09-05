@@ -126,8 +126,8 @@ def test_malformed_json(tmp_path):
 
 
 # --- IP camera (source_type="ip") - real RTSP config, verified end to end
-# 2026-09-03 against 2 real local-network IP cameras (see config.py's own
-# header for the real firmware/paths this was tested against). ------------
+# against 2 real local-network IP cameras (see config.py's own header for
+# the real firmware/paths this was tested against). ------------------------
 
 
 def _ip_cam(name="cam0", host="192.168.0.210", rtsp_path="/11", rtsp_port=554, username="admin", password="Admin123456", width=1920, height=1080, fps=30, fmt="H264"):
