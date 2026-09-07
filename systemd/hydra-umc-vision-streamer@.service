@@ -1,0 +1,47 @@
+# =============================================================================
+# HYDRA-UMC-VISION-STREAMER - Real MJPEG camera capture+serve systemd unit
+# Copyright (C) 2026 JuanenRac (Electro Hobby 3D) <electrohobby3d@gmail.com>
+# GPL-3.0-or-later - see LICENSE
+# =============================================================================
+# Templated unit - one instance per admin-configured camera slot (1-8, the
+# same "cameraId" HYDRA-UMC-STUDIO's own admin panel already assigns and
+# HYDRA-UMC-SERVER's GET /api/camera/:id/stream proxy already expects at
+# 127.0.0.1:(8100 + cameraId - 1) - see that repo's own server.ts comment
+# for the exact deterministic mapping this unit's ExecStart recomputes with
+# %i. Enable one slot with: systemctl enable --now hydra-umc-vision-streamer@1
+# after creating /etc/hydra-umc/cameras/1.env from this repo's own
+# cameras.env.example (sets DEVICE=/dev/videoN for that physical camera -
+# deliberately a manual admin assignment, not auto-discovered: a machine
+# with more than one USB camera has no reliable way to know which /dev/videoN
+# node is "camera slot 1" versus "camera slot 2" without a person deciding).
+[Unit]
+Description=HYDRA-UMC-VISION-STREAMER real MJPEG capture+serve (camera slot %i)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=hydra-umc-vision-streamer
+Group=hydra-umc-vision-streamer
+# Camera device nodes (/dev/video*) are root:video 0660 by Debian's own
+# udev default - this account needs no other privilege to open one.
+SupplementaryGroups=video
+WorkingDirectory=/opt/hydra-umc/vision-streamer
+Environment=PYTHONPATH=/opt/hydra-umc/vision-streamer/src
+EnvironmentFile=/etc/hydra-umc/cameras/%i.env
+ExecStart=/bin/bash -c 'exec /usr/bin/python3 -m hydra_umc_vision_streamer.main stream serve --device "$DEVICE" --addr 127.0.0.1 --port $((8100 + %i - 1))'
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+# Deliberately no PrivateDevices=true - that would hide /dev/video* from
+# this unit entirely and break real camera capture. Purely in-memory
+# (JPEG-encodes and serves each frame, never writes to disk), so no
+# ReadWritePaths is needed either - same reasoning as
+# hydra-umc-anomaly-detector.service.
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+[Install]
+WantedBy=multi-user.target
