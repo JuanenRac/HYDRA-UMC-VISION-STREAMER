@@ -14,9 +14,9 @@ hand.
 
 - **`mjpeg_server.py`'s live capture loop now actually reconnects** (new
   `_open_capture()`/`_reconnect_once()`, wiring `reconnect.py`'s own
-  `ConnectionTracker` into `_capture_loop()`) - found in an
-  ecosystem-wide software-improvements audit: the real, tested
-  exponential-backoff `ConnectionTracker` was wired only into the
+  `ConnectionTracker` into `_capture_loop()`) - found while auditing the
+  code: the real, tested exponential-backoff `ConnectionTracker` was wired
+  only into the
   `stream simulate` CLI path - the live capture loop that talks to real
   hardware never used it, just re-reading a possibly-dead
   `cv2.VideoCapture` with an ad-hoc sleep (capped at 1s) instead of ever
@@ -89,8 +89,8 @@ hand.
 
 ## [0.1.2]
 
-- **Fixed a real bug in `validate_frame_matches_input()`** (found during an
-  ecosystem-wide bug audit): the pre-flight check comparing a camera's
+- **Fixed a real bug in `validate_frame_matches_input()`** (found while
+  auditing the code): the pre-flight check comparing a camera's
   configured resolution against a loaded Hailo model's expected input
   tensor only compared TOTAL byte counts, never width against width and
   height against height individually - a camera misconfigured with its
@@ -247,7 +247,7 @@ hand.
 
 - Build version synchronized with `hydra-umc.project.json` and the repository-native version source.
 
-## [0.0.5] - Two real bugs closed from a live ecosystem bug audit
+## [0.0.5] - Two real bugs closed while auditing the code
 
 - **`src/hydra_umc_vision_streamer/main.py`** - `stream simulate` no longer
   crashes with an unhandled `ZeroDivisionError` on `--consumer-rate 0`
