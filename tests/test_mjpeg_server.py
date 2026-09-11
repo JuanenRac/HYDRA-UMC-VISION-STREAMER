@@ -158,8 +158,8 @@ def test_discover_usb_devices_raises_clear_error_without_opencv(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# Real reconnect wiring in _capture_loop() - found in an ecosystem-wide
-# software-improvements audit: reconnect.py's own tested ConnectionTracker
+# Real reconnect wiring in _capture_loop() - found while auditing
+# the code: reconnect.py's own tested ConnectionTracker
 # was wired only into the `stream simulate` CLI path, never into this
 # live capture loop.
 # ---------------------------------------------------------------------------
