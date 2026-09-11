@@ -52,8 +52,8 @@ MJPEG_BOUNDARY = "hydraumcframe"
 # How many consecutive failed reads before the capture loop below treats
 # the source as really disconnected (releasing and reopening it, via
 # reconnect.py's own tested ConnectionTracker) rather than ordinary,
-# short-lived jitter on a live UVC/RTSP feed. Found missing in an
-# ecosystem-wide software-improvements audit: ConnectionTracker was real
+# short-lived jitter on a live UVC/RTSP feed. Found missing while
+# auditing the code: ConnectionTracker was real
 # and tested but wired only into the `stream simulate` CLI path - this
 # live loop just kept re-reading a possibly-dead cv2.VideoCapture with an
 # ad-hoc, ever-shorter-relative sleep instead of ever actually releasing
