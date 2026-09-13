@@ -10,7 +10,7 @@ by 1 instead (e.g. `0.0.9` -> `0.1.0`), the same carry cascading into
 `MAJOR` if `MINOR` also exceeds 9. `MAJOR` is otherwise only ever bumped by
 hand.
 
-## [Unreleased]
+## [0.1.4]
 
 - **`mjpeg_server.py`'s live capture loop now actually reconnects** (new
   `_open_capture()`/`_reconnect_once()`, wiring `reconnect.py`'s own
@@ -69,6 +69,10 @@ hand.
   `.203`) opens the real camera and serves real MJPEG frames over HTTP.
   README (all 7 languages) and `docs/CLI_REFERENCE.md` updated to state
   4 of 4, not 2 of 4.
+- **Documentation: the README's own "75 tests" claim (all 7 languages)
+  never picked up the new reconnect/discover-usb test coverage above** -
+  the real count is 81 (`python -m pytest tests/ -q`), synced everywhere
+  it was quoted.
 
 ## [0.1.3]
 
