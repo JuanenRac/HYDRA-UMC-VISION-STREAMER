@@ -10,6 +10,28 @@ by 1 instead (e.g. `0.0.9` -> `0.1.0`), the same carry cascading into
 `MAJOR` if `MINOR` also exceeds 9. `MAJOR` is otherwise only ever bumped by
 hand.
 
+## [0.1.5]
+
+- **I30: `mjpeg_server.py` buffers a real `Frame`, not just bare bytes.**
+  `FrameBuffer[bytes]` carried a plain JPEG payload with no way to tell
+  which capture session, which frame within it, or when it was actually
+  captured. New `Frame` dataclass (`payload`/`frame_id`/`session_id`/
+  `capture_ts`) is what `FrameBuffer[Frame]` now stores: `frame_id` is a
+  real monotonic counter per session, `session_id` is a fresh uuid
+  assigned on start and on every real reconnect (so frames from before
+  and after a dropped link are never conflated as one continuous
+  stream), and `capture_ts` is the real wall-clock instant right after
+  `cv2.VideoCapture.read()` succeeds - before JPEG encoding, not when it
+  reached the buffer or a client. The real HTTP wire format
+  (`multipart/x-mixed-replace`) every client (MjpegPlayer.kt, CameraPIP)
+  already expects is completely unchanged - only `frame.payload` ever
+  reaches the socket. 2 new tests, 3 existing ones updated to push/read
+  real `Frame` objects instead of bare bytes; one existing reconnect
+  integration test extended to also prove a real session_id change end
+  to end. 83 total tests. Confirmed via a real git-stash-based
+  regression check that the new/updated tests fail against the pre-fix
+  source. README x7 synced (test count and feature description).
+
 ## [0.1.4]
 
 - **`mjpeg_server.py`'s live capture loop now actually reconnects** (new

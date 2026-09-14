@@ -5,7 +5,7 @@ import types
 import pytest
 
 from hydra_umc_vision_streamer import mjpeg_server
-from hydra_umc_vision_streamer.mjpeg_server import MjpegCaptureSource, discover_usb_devices
+from hydra_umc_vision_streamer.mjpeg_server import Frame, MjpegCaptureSource, discover_usb_devices
 from hydra_umc_vision_streamer.reconnect import ReconnectPolicy
 
 
@@ -41,14 +41,14 @@ def test_wait_for_frame_returns_pushed_frame_without_a_real_camera():
     # same buffer/condition wait_for_frame reads, proving the real
     # producer/consumer handoff works independent of cv2/hardware.
     source = _source()
-    frame = b"\xff\xd8fake-jpeg-bytes\xff\xd9"
+    payload = b"\xff\xd8fake-jpeg-bytes\xff\xd9"
     with source._new_frame:
-        source._buffer.push(frame)
         source.frames_captured += 1
+        source._buffer.push(Frame(payload, source.frames_captured, source.session_id, 1234.5))
         source._new_frame.notify_all()
 
     result = source.wait_for_frame(last_seen=0, timeout=1.0)
-    assert result == frame
+    assert result.payload == payload
 
 
 def test_wait_for_frame_returns_latest_of_several_pushed_frames():
@@ -58,15 +58,46 @@ def test_wait_for_frame_returns_latest_of_several_pushed_frames():
     # one, never a stale backlog - the same "freshest frame always wins"
     # policy FrameBuffer's own docstring documents.
     source = _source()
-    frames = [b"frame-%d" % i for i in range(3)]
+    payloads = [b"frame-%d" % i for i in range(3)]
     with source._new_frame:
-        for frame in frames:
-            source._buffer.push(frame)
-        source.frames_captured += len(frames)
+        for payload in payloads:
+            source.frames_captured += 1
+            source._buffer.push(Frame(payload, source.frames_captured, source.session_id, 1234.5))
         source._new_frame.notify_all()
 
     result = source.wait_for_frame(last_seen=0, timeout=1.0)
-    assert result == frames[-1]
+    assert result.payload == payloads[-1]
+
+
+# I30: frame_id/session_id/capture_ts are a real, separate identity - not
+# just an opaque payload FrameBuffer happens to carry.
+def test_pushed_frames_carry_a_real_monotonic_frame_id_and_stable_session_id():
+    source = _source()
+    with source._new_frame:
+        for i in range(3):
+            source.frames_captured += 1
+            source._buffer.push(Frame(b"frame-%d" % i, source.frames_captured, source.session_id, time.time()))
+        source._new_frame.notify_all()
+
+    result = source.wait_for_frame(last_seen=0, timeout=1.0)
+    assert result.frame_id == 3, "the latest frame must carry the real, current monotonic frame_id"
+    assert result.session_id == source.session_id
+    assert isinstance(result.capture_ts, float)
+
+
+def test_a_real_reconnect_starts_a_genuinely_new_session_id():
+    source = _source()
+    original_session = source.session_id
+    tracker_stub = types.SimpleNamespace(
+        attempt=1,
+        policy=types.SimpleNamespace(max_attempts=3),
+        on_reconnect_success=lambda: None,
+    )
+    monkeypatch_cap = types.SimpleNamespace(release=lambda: None)
+    source._cap = monkeypatch_cap
+    source._open_capture = lambda: types.SimpleNamespace(release=lambda: None)  # noqa: E731 - test double
+    assert source._reconnect_once(tracker_stub) is True
+    assert source.session_id != original_session, "a real reconnect must start a genuinely new capture session"
 
 
 class _FakeFrame:
@@ -252,6 +283,7 @@ def test_capture_loop_reconnects_after_sustained_read_failures(monkeypatch):
     monkeypatch.setattr(mjpeg_server, "RECONNECT_AFTER_CONSECUTIVE_FAILURES", 2)
 
     source = _source()
+    session_before_start = source.session_id
     source.start()
     try:
         deadline = time.monotonic() + 5.0
@@ -266,6 +298,11 @@ def test_capture_loop_reconnects_after_sustained_read_failures(monkeypatch):
     # real reconnect attempt were both constructed and released.
     assert len(_FlakyFakeVideoCapture.instances) >= 2
     assert _FlakyFakeVideoCapture.released_count >= 1
+    # I30: the real reconnect this test just exercised end to end must
+    # have started a genuinely new capture session.
+    assert source.session_id != session_before_start
+    recovered_frame = source.wait_for_frame(last_seen=0, timeout=1.0)
+    assert recovered_frame.session_id == source.session_id, "a frame captured after reconnect must carry the NEW session id"
 
 
 def test_capture_loop_gives_up_and_stops_after_max_reconnect_attempts(monkeypatch):
