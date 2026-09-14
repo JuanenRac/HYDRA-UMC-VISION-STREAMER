@@ -40,6 +40,8 @@ import logging
 import sys
 import threading
 import time
+import uuid
+from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from .buffer import FrameBuffer
@@ -48,6 +50,28 @@ from .reconnect import ConnectionState, ConnectionTracker, default_policy
 logger = logging.getLogger(__name__)
 
 MJPEG_BOUNDARY = "hydraumcframe"
+
+
+@dataclass(frozen=True)
+class Frame:
+    """I30: one real captured JPEG frame, with the identity FrameBuffer's
+    own plain-bytes item type discarded before this - which capture
+    SESSION produced it (a fresh id assigned every time
+    `_reconnect_once` below actually reopens the device, so frames from
+    before/after a real reconnect are never conflated as one continuous
+    stream), a monotonic `frame_id` distinguishing it from every other
+    frame in that same session, and the real wall-clock instant it was
+    actually captured (right after `cv2.VideoCapture.read()` returns,
+    before JPEG encoding - not when it reached this buffer or a client).
+    `payload` is the exact same JPEG bytes `FrameBuffer[bytes]` used to
+    carry directly; the wire format `do_GET` below writes to a real HTTP
+    client is completely unchanged by this.
+    """
+
+    payload: bytes
+    frame_id: int
+    session_id: str
+    capture_ts: float
 
 # How many consecutive failed reads before the capture loop below treats
 # the source as really disconnected (releasing and reopening it, via
@@ -90,7 +114,7 @@ class MjpegCaptureSource:
         self.height = height
         self.fps = fps
         self.jpeg_quality = jpeg_quality
-        self._buffer: FrameBuffer[bytes] = FrameBuffer(max_size=buffer_size)
+        self._buffer: FrameBuffer[Frame] = FrameBuffer(max_size=buffer_size)
         self._lock = threading.Lock()
         self._new_frame = threading.Condition(self._lock)
         self._stop = threading.Event()
@@ -98,6 +122,9 @@ class MjpegCaptureSource:
         self._cap = None
         self.frames_captured = 0
         self.last_error: str | None = None
+        # I30: the initial capture session - a fresh id every time this
+        # source (re)starts producing frames, real or reconnected.
+        self.session_id = str(uuid.uuid4())
 
     def start(self) -> None:
         try:
@@ -183,6 +210,10 @@ class MjpegCaptureSource:
         self._cap = new_cap
         attempts_used = tracker.attempt
         tracker.on_reconnect_success()
+        # I30: a real reconnect starts a genuinely new capture session -
+        # frames from before and after this point must never be treated
+        # as one continuous stream (a gap really happened here).
+        self.session_id = str(uuid.uuid4())
         logger.info("reconnected to %s after %d attempt(s)", self.device, attempts_used)
         return True
 
@@ -235,16 +266,22 @@ class MjpegCaptureSource:
                     return
                 continue
             consecutive_failures = 0
+            # I30: captured right after a real, successful read - before
+            # JPEG encoding, which real hardware/frame size makes a
+            # variable, non-trivial delay of its own. This is the honest
+            # "when did the sensor actually see this" instant, not "when
+            # did it finish being processed".
+            capture_ts = time.time()
             ok, encoded = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, self.jpeg_quality])
             if not ok:
                 continue
             jpeg_bytes = encoded.tobytes()
             with self._new_frame:
-                self._buffer.push(jpeg_bytes)
                 self.frames_captured += 1
+                self._buffer.push(Frame(jpeg_bytes, self.frames_captured, self.session_id, capture_ts))
                 self._new_frame.notify_all()
 
-    def wait_for_frame(self, last_seen: int, timeout: float = 5.0) -> bytes | None:
+    def wait_for_frame(self, last_seen: int, timeout: float = 5.0) -> Frame | None:
         """Blocks until a frame newer than `frames_captured == last_seen`
         is available (or `timeout` elapses), then returns the latest one -
         a real HTTP handler thread's own read loop calls this once per
@@ -291,9 +328,15 @@ def make_handler(source: MjpegCaptureSource) -> type[BaseHTTPRequestHandler]:
                         # <img>) reconnects on its own.
                         break
                     last_seen = source.frames_captured
-                    header = f"--{MJPEG_BOUNDARY}\r\nContent-Type: image/jpeg\r\nContent-Length: {len(frame)}\r\n\r\n".encode("ascii")
+                    # I30: only the real JPEG payload ever reaches the
+                    # wire - frame_id/session_id/capture_ts are this
+                    # process's own internal identity, not part of the
+                    # multipart/x-mixed-replace contract every real
+                    # client (MjpegPlayer.kt, CameraPIP) already expects
+                    # unchanged.
+                    header = f"--{MJPEG_BOUNDARY}\r\nContent-Type: image/jpeg\r\nContent-Length: {len(frame.payload)}\r\n\r\n".encode("ascii")
                     self.wfile.write(header)
-                    self.wfile.write(frame)
+                    self.wfile.write(frame.payload)
                     self.wfile.write(b"\r\n")
             except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
                 # A client disconnecting mid-stream is normal, not an error
