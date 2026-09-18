@@ -10,6 +10,18 @@ by 1 instead (e.g. `0.0.9` -> `0.1.0`), the same carry cascading into
 `MAJOR` if `MINOR` also exceeds 9. `MAJOR` is otherwise only ever bumped by
 hand.
 
+## [0.1.6] - Real max-concurrent-clients cap on /stream
+
+- **`mjpeg_server.py`'s `/stream` now caps concurrent viewers** (`--max-clients`,
+  default 5) - found while auditing the code: nothing bounded how many
+  clients could open the MJPEG stream at once. Each open connection is
+  its own real outbound stream on a CM5 deployment with a limited
+  Wi-Fi uplink; enough simultaneous viewers could genuinely saturate it.
+  A request over the limit gets a real `503` with `Retry-After`,
+  before ever touching the capture source. 3 new tests, one driving the
+  real `Handler.do_GET` end to end through a simulated client
+  disconnect to prove a held slot is actually released, not leaked.
+
 ## [0.1.5]
 
 - **I30: `mjpeg_server.py` buffers a real `Frame`, not just bare bytes.**
