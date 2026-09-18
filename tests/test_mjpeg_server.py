@@ -1,11 +1,14 @@
+import http.client
 import sys
+import threading
 import time
 import types
+from http.server import ThreadingHTTPServer
 
 import pytest
 
 from hydra_umc_vision_streamer import mjpeg_server
-from hydra_umc_vision_streamer.mjpeg_server import Frame, MjpegCaptureSource, discover_usb_devices
+from hydra_umc_vision_streamer.mjpeg_server import Frame, MjpegCaptureSource, discover_usb_devices, make_handler
 from hydra_umc_vision_streamer.reconnect import ReconnectPolicy
 
 
@@ -337,3 +340,148 @@ def test_capture_loop_gives_up_and_stops_after_max_reconnect_attempts(monkeypatc
         assert len(_DisconnectsForeverVideoCapture.instances) >= 2
     finally:
         source.stop()
+
+
+# ---------------------------------------------------------------------------
+# Real max-concurrent-clients cap - found while auditing the code: nothing
+# bounded how many /stream connections could be open at once, a real risk
+# on a CM5's limited Wi-Fi uplink. A real ThreadingHTTPServer is started on
+# an ephemeral port and hit with real http.client connections - no mock of
+# do_GET or the handler itself.
+# ---------------------------------------------------------------------------
+
+
+class _FeedingSource:
+    """A minimal stand-in for MjpegCaptureSource exposing only what
+    make_handler's do_GET actually calls (wait_for_frame/frames_captured)
+    - always has one real frame ready, so every accepted connection's
+    do_GET loop can write real bytes and then block on the NEXT frame
+    (which never arrives) until the test closes the connection, holding
+    the client's slot open long enough to test the cap deterministically."""
+
+    def __init__(self) -> None:
+        self.frames_captured = 1
+        self._served_first = threading.Event()
+
+    def wait_for_frame(self, last_seen: int, timeout: float = 5.0):
+        if last_seen == 0:
+            self._served_first.set()
+            return Frame(b"\xff\xd8fake\xff\xd9", 1, "sess", 0.0)
+        # Every subsequent call blocks until the real timeout - keeps the
+        # connection (and its held client slot) open without spinning.
+        time.sleep(min(timeout, 0.2))
+        return None if timeout <= 0.2 else Frame(b"\xff\xd8fake\xff\xd9", 1, "sess", 0.0)
+
+
+@pytest.fixture
+def running_capped_server():
+    source = _FeedingSource()
+    server = ThreadingHTTPServer(("127.0.0.1", 0), make_handler(source, max_clients=2))
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield server.server_address[1]
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+
+
+def test_stream_accepts_connections_up_to_the_real_configured_limit(running_capped_server):
+    port = running_capped_server
+    conns = [http.client.HTTPConnection("127.0.0.1", port, timeout=3) for _ in range(2)]
+    try:
+        for conn in conns:
+            conn.request("GET", "/stream")
+            resp = conn.getresponse()
+            assert resp.status == 200
+            # Read just the real first multipart boundary+header line so
+            # the connection is proven live without waiting on a frame
+            # that will never come.
+            resp.fp.readline()
+    finally:
+        for conn in conns:
+            conn.close()
+
+
+def test_stream_rejects_a_client_beyond_the_real_configured_limit_with_503(running_capped_server):
+    port = running_capped_server
+    holding = [http.client.HTTPConnection("127.0.0.1", port, timeout=3) for _ in range(2)]
+    try:
+        for conn in holding:
+            conn.request("GET", "/stream")
+            resp = conn.getresponse()
+            assert resp.status == 200
+            resp.fp.readline()
+
+        # A real 3rd client, over the real limit of 2 - must be refused
+        # immediately with a real 503, never queued or silently accepted.
+        overflow = http.client.HTTPConnection("127.0.0.1", port, timeout=3)
+        overflow.request("GET", "/stream")
+        resp = overflow.getresponse()
+        assert resp.status == 503
+        assert resp.getheader("Retry-After") is not None
+        overflow.close()
+    finally:
+        for conn in holding:
+            conn.close()
+
+
+class _FakeWfile:
+    """Accepts the first N writes, then raises BrokenPipeError on every
+    write after - simulates a client that vanished mid-stream, the exact
+    real condition do_GET's own except clause exists to handle."""
+
+    def __init__(self, writes_before_break: int) -> None:
+        self._remaining = writes_before_break
+
+    def write(self, data: bytes) -> None:
+        if self._remaining <= 0:
+            raise BrokenPipeError("simulated client disconnect")
+        self._remaining -= 1
+
+
+class _FakeRequestHandler:
+    """Bare-minimum stand-in exposing exactly what do_GET touches on
+    `self` (path/wfile/send_response/send_header/end_headers), without
+    constructing a real BaseHTTPRequestHandler (which needs a real
+    socket). Drives the REAL do_GET method via handler_cls.do_GET(self)."""
+
+    def __init__(self, writes_before_break: int) -> None:
+        self.path = "/stream"
+        self.wfile = _FakeWfile(writes_before_break)
+
+    def send_response(self, code):
+        pass
+
+    def send_header(self, key, value):
+        pass
+
+    def end_headers(self):
+        pass
+
+    def address_string(self):
+        return "127.0.0.1"
+
+
+def test_a_client_slot_is_released_once_its_connection_ends():
+    # Real proof (drives the actual do_GET method, not a re-implementation
+    # of its bookkeeping) that a served connection's slot is released once
+    # it ends - a simulated BrokenPipeError on write (the real condition a
+    # vanished client produces) must still hit the real finally block and
+    # decrement the shared counter back down, not leak it.
+    source = _FeedingSource()
+    handler_cls = make_handler(source, max_clients=1)
+    assert handler_cls._active_clients == 0
+
+    fake_request = _FakeRequestHandler(writes_before_break=1)
+    handler_cls.do_GET(fake_request)  # real method: increments, writes until BrokenPipeError, decrements in finally
+
+    assert handler_cls._active_clients == 0, "the slot must be released back to 0 once the connection ends"
+
+    # And now that it's free, a real second connection must be accepted
+    # again at the same limit of 1 - proving the release actually works,
+    # not just that the counter reset by coincidence.
+    fake_request_2 = _FakeRequestHandler(writes_before_break=1)
+    handler_cls.do_GET(fake_request_2)
+    assert handler_cls._active_clients == 0

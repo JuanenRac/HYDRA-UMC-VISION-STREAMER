@@ -51,6 +51,16 @@ logger = logging.getLogger(__name__)
 
 MJPEG_BOUNDARY = "hydraumcframe"
 
+# Real gap found while auditing the code: nothing capped how many
+# clients could open /stream at once - every real client re-encodes
+# nothing (the same already-JPEG-encoded frame.payload is written to
+# every connection), so this isn't a CPU risk, but each open connection
+# is its own real outbound Wi-Fi stream on a CM5 deployment with limited
+# uplink - enough simultaneous viewers can genuinely saturate it. Matches
+# this project's own bounded-backpressure ethos (buffer.py) applied to
+# concurrent clients instead of buffered frames.
+DEFAULT_MAX_CLIENTS = 5
+
 
 @dataclass(frozen=True)
 class Frame:
@@ -297,13 +307,22 @@ class MjpegCaptureSource:
             return drained[-1] if drained else None
 
 
-def make_handler(source: MjpegCaptureSource) -> type[BaseHTTPRequestHandler]:
+def make_handler(source: MjpegCaptureSource, max_clients: int = DEFAULT_MAX_CLIENTS) -> type[BaseHTTPRequestHandler]:
     """Builds a request handler bound to one specific capture source - the
     real HTTP wire format HYDRA-UMC-SERVER's own proxy and every real
     client (MjpegPlayer.kt, CameraPIP) already expect: a `multipart/x-mixed-replace`
-    stream of real `Content-Type: image/jpeg` parts."""
+    stream of real `Content-Type: image/jpeg` parts.
+
+    `max_clients` bounds how many /stream connections can be open at
+    once - shared across every request via a class-level counter/lock
+    (ThreadingHTTPServer spawns one handler instance per connection, so
+    per-instance state can't track this). A request over the limit gets
+    a real 503 immediately, before ever touching the capture source."""
 
     class Handler(BaseHTTPRequestHandler):
+        _clients_lock = threading.Lock()
+        _active_clients = 0
+
         def log_message(self, format: str, *args) -> None:  # noqa: A002 - stdlib signature
             logger.info("%s - %s", self.address_string(), format % args)
 
@@ -312,13 +331,22 @@ def make_handler(source: MjpegCaptureSource) -> type[BaseHTTPRequestHandler]:
                 self.send_response(404)
                 self.end_headers()
                 return
-            self.send_response(200)
-            self.send_header("Content-Type", f"multipart/x-mixed-replace; boundary={MJPEG_BOUNDARY}")
-            self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
-            self.send_header("Pragma", "no-cache")
-            self.end_headers()
-            last_seen = 0
+            with Handler._clients_lock:
+                if Handler._active_clients >= max_clients:
+                    self.send_response(503)
+                    self.send_header("Content-Type", "text/plain")
+                    self.send_header("Retry-After", "5")
+                    self.end_headers()
+                    self.wfile.write(f"stream at its {max_clients}-client limit - retry shortly\n".encode("ascii"))
+                    return
+                Handler._active_clients += 1
             try:
+                self.send_response(200)
+                self.send_header("Content-Type", f"multipart/x-mixed-replace; boundary={MJPEG_BOUNDARY}")
+                self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+                self.send_header("Pragma", "no-cache")
+                self.end_headers()
+                last_seen = 0
                 while True:
                     frame = source.wait_for_frame(last_seen, timeout=10.0)
                     if frame is None:
@@ -351,11 +379,17 @@ def make_handler(source: MjpegCaptureSource) -> type[BaseHTTPRequestHandler]:
                 # a crash risk the way HYDRA-UMC-SERVER's own equivalent gap
                 # was, just noisy).
                 pass
+            finally:
+                # Reached only after the increment above (the 503 path
+                # returns before this try/finally), so this always has a
+                # real slot of its own to release.
+                with Handler._clients_lock:
+                    Handler._active_clients -= 1
 
     return Handler
 
 
-def serve_camera(device: str, addr: str, port: int, width: int, height: int, fps: int) -> None:
+def serve_camera(device: str, addr: str, port: int, width: int, height: int, fps: int, max_clients: int = DEFAULT_MAX_CLIENTS) -> None:
     """Real, blocking entry point: opens `device`, starts capturing, and
     serves the real MJPEG stream at http://addr:port/stream until
     interrupted. Raises CameraUnavailableError/RuntimeError immediately
@@ -366,7 +400,7 @@ def serve_camera(device: str, addr: str, port: int, width: int, height: int, fps
     source = MjpegCaptureSource(device=device, width=width, height=height, fps=fps)
     source.start()
     try:
-        server = ThreadingHTTPServer((addr, port), make_handler(source))
+        server = ThreadingHTTPServer((addr, port), make_handler(source, max_clients))
         logger.info("MJPEG stream for %s serving on http://%s:%s/stream", device, addr, port)
         try:
             server.serve_forever()

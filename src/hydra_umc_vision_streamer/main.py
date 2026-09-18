@@ -26,7 +26,7 @@ from pathlib import Path
 from .buffer import FrameBuffer
 from .config import ConfigError, load_cameras
 from .mediamtx_config import build_mediamtx_paths_yaml, rtsp_url_for
-from .mjpeg_server import CameraUnavailableError, discover_usb_devices, serve_camera
+from .mjpeg_server import DEFAULT_MAX_CLIENTS, CameraUnavailableError, discover_usb_devices, serve_camera
 from .pipeline import build_capture_pipeline
 from .reconnect import ConnectionState, ConnectionTracker, ReconnectPolicy
 
@@ -157,7 +157,7 @@ def _cmd_stream_serve(args: argparse.Namespace) -> int:
     binding the HTTP port) if the device can't be opened, matching the
     ecosystem's own "no guessed process" convention."""
     try:
-        serve_camera(args.device, args.addr, args.port, args.width, args.height, args.fps)
+        serve_camera(args.device, args.addr, args.port, args.width, args.height, args.fps, args.max_clients)
     except CameraUnavailableError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
@@ -237,6 +237,10 @@ def _build_parser() -> argparse.ArgumentParser:
     real.add_argument("--width", type=int, default=1280)
     real.add_argument("--height", type=int, default=720)
     real.add_argument("--fps", type=int, default=30)
+    real.add_argument(
+        "--max-clients", type=int, default=DEFAULT_MAX_CLIENTS, dest="max_clients",
+        help=f"Maximum concurrent /stream viewers before a 503 is returned (default: {DEFAULT_MAX_CLIENTS})",
+    )
     real.set_defaults(func=_cmd_stream_serve)
 
     discover = subparsers.add_parser(
