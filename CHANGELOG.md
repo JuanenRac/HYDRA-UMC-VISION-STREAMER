@@ -24,7 +24,7 @@ hand.
 
 ## [0.1.5]
 
-- **I30: `mjpeg_server.py` buffers a real `Frame`, not just bare bytes.**
+- **`mjpeg_server.py` buffers a real `Frame`, not just bare bytes.**
   `FrameBuffer[bytes]` carried a plain JPEG payload with no way to tell
   which capture session, which frame within it, or when it was actually
   captured. New `Frame` dataclass (`payload`/`frame_id`/`session_id`/
