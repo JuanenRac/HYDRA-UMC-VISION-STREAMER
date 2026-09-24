@@ -64,7 +64,7 @@ DEFAULT_MAX_CLIENTS = 5
 
 @dataclass(frozen=True)
 class Frame:
-    """I30: one real captured JPEG frame, with the identity FrameBuffer's
+    """one real captured JPEG frame, with the identity FrameBuffer's
     own plain-bytes item type discarded before this - which capture
     SESSION produced it (a fresh id assigned every time
     `_reconnect_once` below actually reopens the device, so frames from
@@ -132,7 +132,7 @@ class MjpegCaptureSource:
         self._cap = None
         self.frames_captured = 0
         self.last_error: str | None = None
-        # I30: the initial capture session - a fresh id every time this
+        # the initial capture session - a fresh id every time this
         # source (re)starts producing frames, real or reconnected.
         self.session_id = str(uuid.uuid4())
 
@@ -220,7 +220,7 @@ class MjpegCaptureSource:
         self._cap = new_cap
         attempts_used = tracker.attempt
         tracker.on_reconnect_success()
-        # I30: a real reconnect starts a genuinely new capture session -
+        # a real reconnect starts a genuinely new capture session -
         # frames from before and after this point must never be treated
         # as one continuous stream (a gap really happened here).
         self.session_id = str(uuid.uuid4())
@@ -276,7 +276,7 @@ class MjpegCaptureSource:
                     return
                 continue
             consecutive_failures = 0
-            # I30: captured right after a real, successful read - before
+            # captured right after a real, successful read - before
             # JPEG encoding, which real hardware/frame size makes a
             # variable, non-trivial delay of its own. This is the honest
             # "when did the sensor actually see this" instant, not "when
@@ -356,7 +356,7 @@ def make_handler(source: MjpegCaptureSource, max_clients: int = DEFAULT_MAX_CLIE
                         # <img>) reconnects on its own.
                         break
                     last_seen = source.frames_captured
-                    # I30: only the real JPEG payload ever reaches the
+                    # only the real JPEG payload ever reaches the
                     # wire - frame_id/session_id/capture_ts are this
                     # process's own internal identity, not part of the
                     # multipart/x-mixed-replace contract every real
