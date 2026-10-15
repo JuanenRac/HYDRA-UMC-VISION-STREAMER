@@ -13,7 +13,7 @@ hand.
 ## [0.1.6] - Real max-concurrent-clients cap on /stream
 
 - **`mjpeg_server.py`'s `/stream` now caps concurrent viewers** (`--max-clients`,
-  default 5) - found while auditing the code: nothing bounded how many
+  default 5) - found on code review: nothing bounded how many
   clients could open the MJPEG stream at once. Each open connection is
   its own real outbound stream on a CM5 deployment with a limited
   Wi-Fi uplink; enough simultaneous viewers could genuinely saturate it.
@@ -48,8 +48,7 @@ hand.
 
 - **`mjpeg_server.py`'s live capture loop now actually reconnects** (new
   `_open_capture()`/`_reconnect_once()`, wiring `reconnect.py`'s own
-  `ConnectionTracker` into `_capture_loop()`) - found while auditing the
-  code: the real, tested exponential-backoff `ConnectionTracker` was wired
+  `ConnectionTracker` into `_capture_loop()`) - found on code review: the real, tested exponential-backoff `ConnectionTracker` was wired
   only into the
   `stream simulate` CLI path - the live capture loop that talks to real
   hardware never used it, just re-reading a possibly-dead
@@ -127,8 +126,7 @@ hand.
 
 ## [0.1.2]
 
-- **Fixed a real bug in `validate_frame_matches_input()`** (found while
-  auditing the code): the pre-flight check comparing a camera's
+- **Fixed a real bug in `validate_frame_matches_input()`** (found on code review): the pre-flight check comparing a camera's
   configured resolution against a loaded Hailo model's expected input
   tensor only compared TOTAL byte counts, never width against width and
   height against height individually - a camera misconfigured with its
@@ -210,10 +208,6 @@ hand.
   proxied through HYDRA-UMC-SERVER's own `/api/camera/:id/stream` for
   the first time outside the CM5 itself.
 
-## [0.0.9]
-
-- Build version synchronized with `hydra-umc.project.json` and the repository-native version source.
-
 ## [0.0.8] - Real CM5 deployment for `stream serve`
 
 - **`systemd/hydra-umc-vision-streamer@.service`** (new) - templated unit,
@@ -281,11 +275,7 @@ hand.
   `[project.optional-dependencies]` extra (`pip install .[hailo]`); never
   required. 9 new tests (61 total).
 
-## [0.0.6]
-
-- Build version synchronized with `hydra-umc.project.json` and the repository-native version source.
-
-## [0.0.5] - Two real bugs closed while auditing the code
+## [0.0.5] - Two real bugs closed on code review
 
 - **`src/hydra_umc_vision_streamer/main.py`** - `stream simulate` no longer
   crashes with an unhandled `ZeroDivisionError` on `--consumer-rate 0`
