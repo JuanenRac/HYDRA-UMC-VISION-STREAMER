@@ -10,6 +10,12 @@ by 1 instead (e.g. `0.0.9` -> `0.1.0`), the same carry cascading into
 `MAJOR` if `MINOR` also exceeds 9. `MAJOR` is otherwise only ever bumped by
 hand.
 
+## [0.1.7] - Stalled viewers release their stream slot, Portuguese README
+
+- **A stalled viewer could hold a stream slot forever:** `/stream` caps concurrent viewers at `--max-clients` (default 5, a real 503 beyond that) to protect a CM5's Wi-Fi uplink, but the handler had no socket timeout. A client that opened `/stream` and then stopped reading (or never read at all) left its handler thread stuck in a write once the kernel buffers filled, and kept its slot until the process restarted - five such clients locked every real viewer out. A socket now times out after 30 seconds (`SOCKET_TIMEOUT_SECONDS`): a stalled client is dropped and its slot released, while a viewer that is merely slow keeps up with time to spare.
+- **Tests:** a new test starts a one-slot server, connects a client that never reads from a source producing large frames, and checks that the slot is released; another pins the timeout (88 tests).
+- **Docs:** the README test counts (86 and 83, which disagreed with each other) are corrected, the translations now mention the viewer cap and the timeout, and a README in Portuguese (`README_por.md`) joins the other translations.
+
 ## [0.1.6] - Real max-concurrent-clients cap on /stream
 
 - **`mjpeg_server.py`'s `/stream` now caps concurrent viewers** (`--max-clients`,

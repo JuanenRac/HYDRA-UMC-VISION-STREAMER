@@ -485,3 +485,50 @@ def test_a_client_slot_is_released_once_its_connection_ends():
     fake_request_2 = _FakeRequestHandler(writes_before_break=1)
     handler_cls.do_GET(fake_request_2)
     assert handler_cls._active_clients == 0
+
+
+class _EndlessBigFrames:
+    """A source that always has a large frame ready, so a connection's write loop never waits on the camera:
+    the only thing that can stop it is the client's socket."""
+
+    frames_captured = 1
+
+    def __init__(self) -> None:
+        self._frame = Frame(b"\xff\xd8" + b"x" * (1 << 20) + b"\xff\xd9", 1, "sess", 0.0)
+
+    def wait_for_frame(self, last_seen: int, timeout: float = 5.0):
+        return self._frame
+
+
+def test_a_client_that_stops_reading_releases_its_slot_instead_of_holding_it_forever():
+    # a client that opens /stream and never reads leaves the handler stuck in a write once the kernel
+    # buffers fill; with no socket timeout that slot was held for ever and a few such clients
+    # starved every real viewer
+    handler_cls = make_handler(_EndlessBigFrames(), max_clients=1)
+    handler_cls.timeout = 0.3
+    server = ThreadingHTTPServer(("127.0.0.1", 0), handler_cls)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    stalled = http.client.HTTPConnection("127.0.0.1", server.server_address[1], timeout=5)
+    try:
+        stalled.request("GET", "/stream")  # sent, and then never read
+        deadline = time.monotonic() + 5
+        while handler_cls._active_clients == 0 and time.monotonic() < deadline:
+            time.sleep(0.02)
+        assert handler_cls._active_clients == 1, "the stalled client should have taken the only slot"
+        deadline = time.monotonic() + 15
+        while handler_cls._active_clients != 0 and time.monotonic() < deadline:
+            time.sleep(0.05)
+        assert handler_cls._active_clients == 0, "the stalled client must be dropped and its slot released"
+    finally:
+        stalled.close()
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+
+
+def test_the_stream_handler_has_a_socket_timeout():
+    from hydra_umc_vision_streamer.mjpeg_server import SOCKET_TIMEOUT_SECONDS
+
+    assert make_handler(_FeedingSource()).timeout == SOCKET_TIMEOUT_SECONDS
+    assert 0 < SOCKET_TIMEOUT_SECONDS <= 60

@@ -60,6 +60,7 @@ MJPEG_BOUNDARY = "hydraumcframe"
 # this project's own bounded-backpressure ethos (buffer.py) applied to
 # concurrent clients instead of buffered frames.
 DEFAULT_MAX_CLIENTS = 5
+SOCKET_TIMEOUT_SECONDS = 30.0
 
 
 @dataclass(frozen=True)
@@ -323,6 +324,13 @@ def make_handler(source: MjpegCaptureSource, max_clients: int = DEFAULT_MAX_CLIE
         _clients_lock = threading.Lock()
         _active_clients = 0
 
+        # Seconds any single read or write on a client's socket may block. Without it, a
+        # client that opens /stream and then stops reading (or never reads at all) leaves
+        # its handler thread stuck in a write once the kernel buffers fill, holding one of
+        # the max_clients slots forever: a handful of such clients starve every real viewer.
+        # A viewer that is merely slow keeps up with 30 s to spare; a stalled one is dropped.
+        timeout = SOCKET_TIMEOUT_SECONDS
+
         def log_message(self, format: str, *args) -> None:  # noqa: A002 - stdlib signature
             logger.info("%s - %s", self.address_string(), format % args)
 
@@ -366,7 +374,7 @@ def make_handler(source: MjpegCaptureSource, max_clients: int = DEFAULT_MAX_CLIE
                     self.wfile.write(header)
                     self.wfile.write(frame.payload)
                     self.wfile.write(b"\r\n")
-            except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+            except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError, TimeoutError):
                 # A client disconnecting mid-stream is normal, not an error
                 # to log - ConnectionAbortedError is Windows' own name for
                 # the same real condition BrokenPipeError/ConnectionResetError
