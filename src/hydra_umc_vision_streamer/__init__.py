@@ -1,7 +1,7 @@
 # =============================================================================
 # HYDRA-UMC-VISION-STREAMER - package init: src/hydra_umc_vision_streamer/__init__.py
 # Copyright (C) 2026 JuanenRac (Electro Hobby 3D) <electrohobby3d@gmail.com>
-# GPL-3.0 - see LICENSE
+# GPL-3.0-or-later - see LICENSE
 # =============================================================================
 """HYDRA-UMC-VISION-STREAMER - GStreamer capture/pre-processing pipeline for
 up to 8x USB 3.0 camera streams, feeding the Hailo-8 NPU on

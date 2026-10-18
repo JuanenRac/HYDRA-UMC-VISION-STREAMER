@@ -10,6 +10,11 @@ by 1 instead (e.g. `0.0.9` -> `0.1.0`), the same carry cascading into
 `MAJOR` if `MINOR` also exceeds 9. `MAJOR` is otherwise only ever bumped by
 hand.
 
+## [0.1.9]
+
+- Build version synchronized with `hydra-umc.project.json` and the repository-native version source.
+- Every SPDX identifier, file header, the package metadata, the service units and the README licence line now say GPL-3.0-or-later consistently (the LICENSE file keeps the full GPL-3.0 text).
+
 ## [0.1.8] - Shared viewers, camera give-up, masked credentials and safe pipelines
 
 - **Every viewer gets every frame:** the capture buffer was shared and the first reader emptied it, so with two or three viewers on one camera the others were cut off on the first frame and reconnected in a loop. Readers now share the latest frame without consuming it, so `--max-clients` really allows several viewers.

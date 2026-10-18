@@ -1,7 +1,7 @@
 # =============================================================================
 # HYDRA-UMC-VISION-STREAMER - entry point: src/hydra_umc_vision_streamer/main.py
 # Copyright (C) 2026 JuanenRac (Electro Hobby 3D) <electrohobby3d@gmail.com>
-# GPL-3.0 - see LICENSE
+# GPL-3.0-or-later - see LICENSE
 # =============================================================================
 """Entry point for HYDRA-UMC-VISION-STREAMER.
 

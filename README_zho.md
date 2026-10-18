@@ -9,7 +9,7 @@
 ### 🚀 面向多摄像头边缘 AI 的优化 GStreamer 流水线
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Licencia-GPL%203.0-blue.svg" alt="GPL 3.0">
+  <img src="https://img.shields.io/badge/Licencia-GPL%203.0-blue.svg" alt="GPL 3.0 or later">
   <img src="https://img.shields.io/badge/Framework-GStreamer-62B417.svg" alt="GStreamer">
   <img src="https://img.shields.io/badge/Platform-Raspberry%20Pi%20CM5-BC1142.svg" alt="CM5">
   <img src="https://img.shields.io/badge/Interface-8x%20USB%203.0-blue.svg" alt="8x USB 3.0">
@@ -339,4 +339,4 @@ run.bat
 📺 [youtube.com/@electrohobby3d](https://youtube.com/@electrohobby3d)
 
 ## 📜 许可证
-GPL-3.0 —— 详见 LICENSE。
+GPL-3.0-or-later —— 详见 LICENSE。

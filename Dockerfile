@@ -1,7 +1,7 @@
 # =============================================================================
 # HYDRA-UMC-VISION-STREAMER - Container Build: Dockerfile
 # Copyright (C) 2026 JuanenRac (Electro Hobby 3D) <electrohobby3d@gmail.com>
-# GPL-3.0 - see LICENSE
+# GPL-3.0-or-later - see LICENSE
 # =============================================================================
 # Real image for the MJPEG capture+serve CLI (mjpeg_server.py). Deliberately
 # NOT the official `python:*-slim` image: pyproject.toml's own comment

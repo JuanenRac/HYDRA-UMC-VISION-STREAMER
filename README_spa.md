@@ -9,7 +9,7 @@
 ### 🚀 Pipeline GStreamer Optimizado para IA de Borde Multi-Cámara
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Licencia-GPL%203.0-blue.svg" alt="GPL 3.0">
+  <img src="https://img.shields.io/badge/Licencia-GPL%203.0-blue.svg" alt="GPL 3.0 or later">
   <img src="https://img.shields.io/badge/Framework-GStreamer-62B417.svg" alt="GStreamer">
   <img src="https://img.shields.io/badge/Plataforma-Raspberry%20Pi%20CM5-BC1142.svg" alt="CM5">
   <img src="https://img.shields.io/badge/Interfaz-8x%20USB%203.0-blue.svg" alt="8x USB 3.0">
@@ -320,4 +320,4 @@ Este proyecto es parte del ecosistema de robótica HYDRA-UMC del mismo autor (Ju
 📺 [youtube.com/@electrohobby3d](https://youtube.com/@electrohobby3d)
 
 ## 📜 LICENCIA
-GPL-3.0 - Ver archivo LICENSE para más detalles.
+GPL-3.0-or-later - Ver archivo LICENSE para más detalles.

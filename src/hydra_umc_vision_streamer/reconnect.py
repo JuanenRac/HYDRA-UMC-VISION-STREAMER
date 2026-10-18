@@ -1,7 +1,7 @@
 # =============================================================================
 # HYDRA-UMC-VISION-STREAMER - src/hydra_umc_vision_streamer/reconnect.py
 # Copyright (C) 2026 JuanenRac (Electro Hobby 3D) <electrohobby3d@gmail.com>
-# GPL-3.0 - see LICENSE
+# GPL-3.0-or-later - see LICENSE
 # =============================================================================
 """Real, deterministic reconnection policy for a camera capture source
 (or a MediaMTX relay link) that drops - independent of the real

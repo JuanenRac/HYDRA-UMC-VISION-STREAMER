@@ -1,7 +1,7 @@
 # =============================================================================
 # HYDRA-UMC-VISION-STREAMER - tests/test_streaming_robustness.py
 # Copyright (C) 2026 JuanenRac (Electro Hobby 3D) <electrohobby3d@gmail.com>
-# GPL-3.0 - see LICENSE
+# GPL-3.0-or-later - see LICENSE
 # =============================================================================
 """Several viewers, a camera that never comes back, credentials in logs and
 the strings written into a generated pipeline."""

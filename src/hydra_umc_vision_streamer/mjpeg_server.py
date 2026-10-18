@@ -1,7 +1,7 @@
 # =============================================================================
 # HYDRA-UMC-VISION-STREAMER - src/hydra_umc_vision_streamer/mjpeg_server.py
 # Copyright (C) 2026 JuanenRac (Electro Hobby 3D) <electrohobby3d@gmail.com>
-# GPL-3.0 - see LICENSE
+# GPL-3.0-or-later - see LICENSE
 # =============================================================================
 """A real, working v0 for the actual gap this project's own README/main.py
 docstring already named: "Actually running the generated pipeline... against

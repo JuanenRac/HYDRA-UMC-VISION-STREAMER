@@ -1,10 +1,10 @@
 [project]
 name = "hydra-umc-vision-streamer"
-version = "0.1.8"
+version = "0.1.9"
 description = "Optimized GStreamer capture and pre-processing pipeline for up to 8x USB 3.0 camera streams feeding the Hailo-8 NPU on HYDRA-UMC-VISION-NODE."
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "GPL-3.0-only" }
+license = { text = "GPL-3.0-or-later" }
 authors = [{ name = "JuanenRac", email = "electrohobby3d@gmail.com" }]
 # No runtime dependencies yet - the v0 config/pipeline-description layer
 # (config.py, pipeline.py, mediamtx_config.py) uses only the stdlib; its

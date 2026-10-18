@@ -1,7 +1,7 @@
 # =============================================================================
 # HYDRA-UMC-VISION-STREAMER - src/hydra_umc_vision_streamer/buffer.py
 # Copyright (C) 2026 JuanenRac (Electro Hobby 3D) <electrohobby3d@gmail.com>
-# GPL-3.0 - see LICENSE
+# GPL-3.0-or-later - see LICENSE
 # =============================================================================
 """A real, bounded per-camera frame buffer, independent of the real
 GStreamer/V4L2 runtime this project doesn't have in this environment.
