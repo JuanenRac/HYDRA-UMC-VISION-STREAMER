@@ -18,6 +18,17 @@
 
 ---
 
+## 📋 Num relance
+
+| | |
+|---|---|
+| Versão | `0.2.0` |
+| Maturidade | Estabelecido |
+| Testes | 105 |
+| Tecnologia | Python / GStreamer / MediaMTX |
+| Destino | O Raspberry Pi CM5 de uma célula HYDRA-UMC |
+| Em hardware real | Executado numa bancada de ensaio: a verificação de honestidade acima diz que partes correram em hardware real |
+
 ## 1. 🛠️ VISÃO TÉCNICA GERAL
 
 O **HYDRA-UMC-VISION-STREAMER** destina-se a ser a camada de ingestão de multimédia de alto desempenho da família do Nó de IA de Visão. O seu trabalho é a captura de baixo nível, o pré-processamento e a distribuição de até 8 fluxos simultâneos de câmaras USB 3.0, usando o ISP acelerado por hardware do Broadcom BCM2712 (CM5) para fazer a conversão de espaço de cor, o redimensionamento e a normalização antes de as tramas chegarem à NPU Hailo-8.

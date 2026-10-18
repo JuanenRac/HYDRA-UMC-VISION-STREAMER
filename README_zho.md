@@ -18,6 +18,17 @@
 
 ---
 
+## 📋 速览
+
+| | |
+|---|---|
+| 版本 | `0.2.0` |
+| 成熟度 | 成熟 |
+| 测试 | 105 |
+| 技术栈 | Python / GStreamer / MediaMTX |
+| 目标 | HYDRA-UMC 工作单元的 Raspberry Pi CM5 |
+| 真实硬件 | 已在试验台上运行：上面的诚实性检查说明了哪些部分在真实硬件上运行过 |
+
 ## 1. 🛠️ 技术概述
 
 **HYDRA-UMC-VISION-STREAMER** 旨在成为 Vision AI Node 系列的高性能媒体

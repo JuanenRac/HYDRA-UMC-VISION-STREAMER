@@ -18,6 +18,17 @@
 
 ---
 
+## 📋 At a glance
+
+| | |
+|---|---|
+| Version | `0.2.0` |
+| Maturity | Established |
+| Tests | 105 |
+| Stack | Python / GStreamer / MediaMTX |
+| Target | The Raspberry Pi CM5 of a HYDRA-UMC cell |
+| On real hardware | Run on a bench setup: the honesty check above says which parts ran on real hardware |
+
 ## 1. 🛠️ TECHNICAL OVERVIEW
 
 **HYDRA-UMC-VISION-STREAMER** is intended to be the high-performance media ingestion layer of the Vision AI Node family. Its job is the low-level capture, pre-processing, and distribution of up to 8 concurrent USB 3.0 camera streams, using the hardware-accelerated ISP of the Broadcom BCM2712 (CM5) to do color-space conversion, resizing, and normalization before frames reach the Hailo-8 NPU.
