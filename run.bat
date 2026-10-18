@@ -29,6 +29,10 @@ REM HYDRA_UMC_SCRIPT_STANDARD_BANNER_END
 REM
 REM Runs the project entry point from the local venv created by build.bat.
 setlocal
+rem Keep the window open for people, never in automation (CI / HYDRA_UMC_CI).
+set "KEEP_OPEN=pause"
+if defined CI set "KEEP_OPEN=ver >nul"
+if "%HYDRA_UMC_CI%"=="1" set "KEEP_OPEN=ver >nul"
 cd /d "%~dp0"
 
 if exist ".venv\Scripts\python.exe" (
@@ -46,5 +50,5 @@ set "HYDRA_UMC_SCRIPT_RESULT=%ERRORLEVEL%"
 :hydra_umc_pause
 echo.
 echo [INFO] Script completed. Exit code: %HYDRA_UMC_SCRIPT_RESULT%.
-pause
+%KEEP_OPEN%
 exit /b %HYDRA_UMC_SCRIPT_RESULT%
