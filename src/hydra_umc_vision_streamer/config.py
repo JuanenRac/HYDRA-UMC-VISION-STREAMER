@@ -30,6 +30,7 @@ configured here, not invented.
 """
 from __future__ import annotations
 
+import ipaddress
 import json
 import re
 from dataclasses import dataclass
@@ -48,6 +49,32 @@ DEFAULT_RTSP_PORT = 554
 # this safe set up front is what keeps a stray `:`, space, or newline
 # from corrupting either generator's output.
 _NAME_RE = re.compile(r"^[A-Za-z0-9_-]+$")
+
+
+# Anything written into a gst-launch string, a YAML file or a command line
+# must be a plain token. A device is /dev/videoN (or a stable by-id/by-path
+# link), a host a hostname or an IP address, a path free of spaces, quotes
+# and gst separators ("!" and friends).
+_DEVICE_RE = re.compile(r"^/dev/(video[0-9]+|v4l/by-(id|path)/[A-Za-z0-9._:-]+)$")
+_HOSTNAME_RE = re.compile(r"^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$")
+_RTSP_PATH_RE = re.compile(r"^/?[A-Za-z0-9._/~%?&=+:-]*$")
+_CREDENTIALS_IN_URL_RE = re.compile(r"([A-Za-z][A-Za-z0-9+.-]*://)[^/\s]*@")
+
+
+def redact_credentials(text: str) -> str:
+    """`text` with the user:password part of every URL replaced by ***, for
+    anything that is logged, named or shown to a person."""
+    return _CREDENTIALS_IN_URL_RE.sub(r"\1***@", text)
+
+
+def is_valid_host(host: str) -> bool:
+    if _HOSTNAME_RE.fullmatch(host):
+        return True
+    try:
+        ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    return True
 
 
 class ConfigError(ValueError):
@@ -83,11 +110,28 @@ class CameraConfig:
         if self.source_type != "ip":
             raise ValueError(f"rtsp_url() called on a non-ip camera ({self.source_type!r})")
         path = self.rtsp_path if self.rtsp_path.startswith("/") else f"/{self.rtsp_path}"
+        host = self.host_for_url()
         if self.username or self.password:
             user = quote(self.username, safe="")
             pw = quote(self.password, safe="")
-            return f"rtsp://{user}:{pw}@{self.host}:{self.rtsp_port}{path}"
-        return f"rtsp://{self.host}:{self.rtsp_port}{path}"
+            return f"rtsp://{user}:{pw}@{host}:{self.rtsp_port}{path}"
+        return f"rtsp://{host}:{self.rtsp_port}{path}"
+
+    def host_for_url(self) -> str:
+        """The host as it must appear in a URL: an IPv6 address needs brackets."""
+        try:
+            if isinstance(ipaddress.ip_address(self.host), ipaddress.IPv6Address):
+                return f"[{self.host}]"
+        except ValueError:
+            pass
+        return self.host
+
+    def display_target(self) -> str:
+        """Where this camera is, safe to print: the device, or host:port/path without credentials."""
+        if self.source_type == "usb":
+            return self.device
+        path = self.rtsp_path if self.rtsp_path.startswith("/") else f"/{self.rtsp_path}"
+        return f"rtsp://{self.host_for_url()}:{self.rtsp_port}{path}"
 
 
 def _parse_camera(raw: object, index: int) -> CameraConfig:
@@ -125,13 +169,22 @@ def _parse_camera(raw: object, index: int) -> CameraConfig:
         device = raw.get("device", "")
         if not str(device).startswith("/dev/"):
             raise ConfigError(f"camera {index} ({raw['name']}): device must start with /dev/ for source_type \"usb\"")
+        if not _DEVICE_RE.fullmatch(str(device)):
+            raise ConfigError(
+                f"camera {index} ({raw['name']}): device {device!r} must be /dev/videoN or a /dev/v4l/by-id|by-path link"
+            )
     else:
         host = str(raw.get("host", ""))
         if not host:
             raise ConfigError(f"camera {index} ({raw['name']}): host is required for source_type \"ip\"")
+        if not is_valid_host(host):
+            raise ConfigError(f"camera {index} ({raw['name']}): host {host!r} must be a hostname or an IP address")
         rtsp_path = str(raw.get("rtsp_path", ""))
         if not rtsp_path:
             raise ConfigError(f"camera {index} ({raw['name']}): rtsp_path is required for source_type \"ip\" (e.g. \"/11\" - real per-camera-firmware value, see this file's own header)")
+        if not _RTSP_PATH_RE.fullmatch(rtsp_path):
+            raise ConfigError(f"camera {index} ({raw['name']}): rtsp_path {rtsp_path!r} contains characters that are not allowed")
+        rtsp_path = rtsp_path if rtsp_path.startswith("/") else f"/{rtsp_path}"
         rtsp_port = raw.get("rtsp_port", DEFAULT_RTSP_PORT)
         if isinstance(rtsp_port, bool) or not isinstance(rtsp_port, int) or not (0 < rtsp_port < 65536):
             raise ConfigError(f"camera {index} ({raw['name']}): rtsp_port must be a valid port number")

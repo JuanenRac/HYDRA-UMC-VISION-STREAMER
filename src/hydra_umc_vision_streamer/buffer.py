@@ -71,6 +71,12 @@ class FrameBuffer(Generic[T]):
             return None
         return self._items.popleft()
 
+    def peek_latest(self) -> T | None:
+        """The newest item without removing it, or None if empty - what
+        several readers of one live feed use, so none of them consumes
+        the frame the others still have to see."""
+        return self._items[-1] if self._items else None
+
     def drain(self) -> list[T]:
         """Removes and returns every buffered item, oldest first."""
         items = list(self._items)

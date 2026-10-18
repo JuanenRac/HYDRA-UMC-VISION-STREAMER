@@ -343,7 +343,7 @@ process is stopped.
 USB camera:
 
 ```bash
-$ hydra-umc-vision-streamer stream serve --device 0 --port 8090
+$ hydra-umc-vision-streamer stream serve --device 0 --port 8100
 ```
 
 RTSP IP camera — verified end to end against real hardware on the local
@@ -352,7 +352,7 @@ frames through this exact path; the 2nd pair needed their own real
 RTSP path, `profile0`, rather than the first pair's `/11`):
 
 ```bash
-$ hydra-umc-vision-streamer stream serve --device "rtsp://admin:secret@192.168.0.211:554/11" --port 8090 --width 1920 --height 1080 --fps 15
+$ CAMERA_URL="rtsp://admin:secret@192.168.0.211:554/11" hydra-umc-vision-streamer stream serve --device-env CAMERA_URL --port 8100 --width 1920 --height 1080 --fps 15
 ```
 
 A client disconnecting mid-stream (closing the browser tab, a dropped

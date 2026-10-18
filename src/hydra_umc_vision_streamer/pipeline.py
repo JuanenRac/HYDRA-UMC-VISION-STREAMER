@@ -29,6 +29,12 @@ _DECODE_BY_FORMAT = {
 }
 
 
+_IP_DEPAY_BY_FORMAT = {
+    "H264": "rtph264depay ! h264parse ! avdec_h264 ! videoconvert",
+    "MJPG": "rtpjpegdepay ! jpegdec ! videoconvert",
+}
+
+
 def build_capture_pipeline(camera: CameraConfig, rtsp_url: str) -> str:
     """The gst-launch-1.0 description for one camera's capture pipeline.
 
@@ -37,15 +43,28 @@ def build_capture_pipeline(camera: CameraConfig, rtsp_url: str) -> str:
     branch pushed out over RTSP via `rtspclientsink` to the (future)
     MediaMTX relay, at the URL `build_mediamtx_paths()`/the caller
     already agreed this camera's path maps to.
+
+    Both branches are leaky and bounded: a slow consumer drops frames
+    instead of accumulating them or stalling the other branch. An IP camera
+    is read with `rtspsrc` (never `v4l2src`), and its credentials are not
+    printed - they are expected in `$CAMERA_USER` / `$CAMERA_PASSWORD`.
     """
-    caps = _CAPS_BY_FORMAT[camera.format].format(
-        width=camera.width, height=camera.height, fps=camera.fps
-    )
-    decode = _DECODE_BY_FORMAT[camera.format]
+    if camera.source_type == "ip":
+        depay = _IP_DEPAY_BY_FORMAT.get(camera.format)
+        if depay is None:
+            raise ValueError(f"an IP camera streams H264 or MJPG, not {camera.format!r}")
+        credentials = " user-id=$CAMERA_USER user-pw=$CAMERA_PASSWORD" if camera.username or camera.password else ""
+        source = f"rtspsrc location={camera.display_target()} latency=0{credentials} ! {depay}"
+    else:
+        caps = _CAPS_BY_FORMAT[camera.format].format(
+            width=camera.width, height=camera.height, fps=camera.fps
+        )
+        decode = _DECODE_BY_FORMAT[camera.format]
+        source = f"v4l2src device={camera.device} ! {caps} ! {decode}"
 
     return (
-        f"v4l2src device={camera.device} ! {caps} ! {decode} ! "
+        f"{source} ! "
         f"tee name=t "
-        f"t. ! queue ! appsink name={camera.name}_hailo_sink "
-        f"t. ! queue ! rtspclientsink location={rtsp_url}"
+        f"t. ! queue leaky=downstream max-size-buffers=1 ! appsink name={camera.name}_hailo_sink max-buffers=1 drop=true sync=false "
+        f"t. ! queue leaky=downstream max-size-buffers=2 ! rtspclientsink location={rtsp_url}"
     )

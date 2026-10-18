@@ -35,7 +35,7 @@ that hardware and pipeline exist.
 """
 from __future__ import annotations
 
-import io
+import json
 import logging
 import sys
 import threading
@@ -43,8 +43,10 @@ import time
 import uuid
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.parse import urlparse
 
 from .buffer import FrameBuffer
+from .config import redact_credentials
 from .reconnect import ConnectionState, ConnectionTracker, default_policy
 
 logger = logging.getLogger(__name__)
@@ -121,6 +123,9 @@ class MjpegCaptureSource:
 
     def __init__(self, device: str, width: int, height: int, fps: int, buffer_size: int = 4, jpeg_quality: int = 80) -> None:
         self.device = device
+        # What may appear in logs, error messages and thread names: an RTSP
+        # URL carries the camera's password.
+        self.display_device = redact_credentials(device)
         self.width = width
         self.height = height
         self.fps = fps
@@ -132,6 +137,8 @@ class MjpegCaptureSource:
         self._thread: threading.Thread | None = None
         self._cap = None
         self.frames_captured = 0
+        self.last_frame_time: float | None = None  # time.monotonic() of the newest frame
+        self.gave_up = threading.Event()  # set when every reconnect attempt was used
         self.last_error: str | None = None
         # the initial capture session - a fresh id every time this
         # source (re)starts producing frames, real or reconnected.
@@ -147,7 +154,7 @@ class MjpegCaptureSource:
             ) from exc
 
         self._cap = self._open_capture()
-        self._thread = threading.Thread(target=self._capture_loop, name=f"mjpeg-capture-{self.device}", daemon=True)
+        self._thread = threading.Thread(target=self._capture_loop, name=f"mjpeg-capture-{self.display_device}", daemon=True)
         self._thread.start()
 
     def _open_capture(self):
@@ -186,7 +193,7 @@ class MjpegCaptureSource:
         if not cap.isOpened():
             cap.release()
             kind = "IP camera" if is_ip_camera else "camera device"
-            raise CameraUnavailableError(f"Could not open {kind} {self.device!r} - check it is connected/reachable, its credentials are correct, and it is not in use by another process.")
+            raise CameraUnavailableError(f"Could not open {kind} {self.display_device!r} - check it is connected/reachable, its credentials are correct, and it is not in use by another process.")
         if not is_ip_camera:
             # A real RTSP camera dictates its own real resolution/fps -
             # cap.set() against an RTSP stream is a real no-op on most
@@ -214,7 +221,7 @@ class MjpegCaptureSource:
             if delay is not None:
                 logger.warning(
                     "reconnect attempt %d/%d to %s failed: %s - retrying in %.1fs",
-                    attempts_tried, tracker.policy.max_attempts, self.device, exc, delay,
+                    attempts_tried, tracker.policy.max_attempts, self.display_device, exc, delay,
                 )
                 self._stop.wait(delay)
             return False
@@ -225,7 +232,7 @@ class MjpegCaptureSource:
         # frames from before and after this point must never be treated
         # as one continuous stream (a gap really happened here).
         self.session_id = str(uuid.uuid4())
-        logger.info("reconnected to %s after %d attempt(s)", self.device, attempts_used)
+        logger.info("reconnected to %s after %d attempt(s)", self.display_device, attempts_used)
         return True
 
     def stop(self) -> None:
@@ -244,7 +251,7 @@ class MjpegCaptureSource:
             ok, frame = self._cap.read()
             if not ok or frame is None:
                 consecutive_failures += 1
-                self.last_error = f"{consecutive_failures} consecutive failed reads from {self.device}"
+                self.last_error = f"{consecutive_failures} consecutive failed reads from {self.display_device}"
                 if consecutive_failures < RECONNECT_AFTER_CONSECUTIVE_FAILURES:
                     # A single/occasional bad read is real, ordinary jitter
                     # on a live feed - a camera briefly busy shouldn't spin
@@ -265,7 +272,7 @@ class MjpegCaptureSource:
                     continue
                 if tracker.state == ConnectionState.GIVEN_UP:
                     self.last_error = (
-                        f"gave up reconnecting to {self.device} after "
+                        f"gave up reconnecting to {self.display_device} after "
                         f"{tracker.policy.max_attempts} attempts"
                     )
                     logger.error(self.last_error)
@@ -273,6 +280,7 @@ class MjpegCaptureSource:
                     # cycle failing - wait_for_frame()'s own callers rely
                     # on `_stop` to mean "no more frames are ever coming",
                     # which is now honestly true.
+                    self.gave_up.set()
                     self._stop.set()
                     return
                 continue
@@ -289,8 +297,31 @@ class MjpegCaptureSource:
             jpeg_bytes = encoded.tobytes()
             with self._new_frame:
                 self.frames_captured += 1
+                self.last_frame_time = time.monotonic()
                 self._buffer.push(Frame(jpeg_bytes, self.frames_captured, self.session_id, capture_ts))
                 self._new_frame.notify_all()
+
+    def health(self, max_age_seconds: float = 5.0) -> dict:
+        """What GET /health reports: whether frames are arriving right now."""
+        with self._lock:
+            age = None if self.last_frame_time is None else time.monotonic() - self.last_frame_time
+            captured = self.frames_captured
+        if self.gave_up.is_set():
+            state = "given_up"
+        elif age is None:
+            state = "connecting"
+        elif age <= max_age_seconds:
+            state = "streaming"
+        else:
+            state = "stalled"
+        return {
+            "state": state,
+            "healthy": state == "streaming",
+            "last_frame_age_ms": None if age is None else int(age * 1000),
+            "frames_captured": captured,
+            "session_id": self.session_id,
+            "last_error": self.last_error,
+        }
 
     def wait_for_frame(self, last_seen: int, timeout: float = 5.0) -> Frame | None:
         """Blocks until a frame newer than `frames_captured == last_seen`
@@ -304,8 +335,9 @@ class MjpegCaptureSource:
                 if remaining <= 0:
                     return None
                 self._new_frame.wait(timeout=remaining)
-            drained = self._buffer.drain()
-            return drained[-1] if drained else None
+            # Every viewer shares this one buffer, so reading must not consume
+            # the frame: the newest one is returned and left in place.
+            return self._buffer.peek_latest()
 
 
 def make_handler(source: MjpegCaptureSource, max_clients: int = DEFAULT_MAX_CLIENTS) -> type[BaseHTTPRequestHandler]:
@@ -335,19 +367,33 @@ def make_handler(source: MjpegCaptureSource, max_clients: int = DEFAULT_MAX_CLIE
             logger.info("%s - %s", self.address_string(), format % args)
 
         def do_GET(self) -> None:  # noqa: N802 - stdlib method name
-            if self.path not in ("/stream", "/"):
+            path = urlparse(self.path).path
+            if path == "/health":
+                report = source.health() if hasattr(source, "health") else {"state": "unknown", "healthy": True}
+                body = json.dumps(report).encode("utf-8")
+                self.send_response(200 if report.get("healthy") else 503)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+                return
+            if path not in ("/stream", "/"):
                 self.send_response(404)
                 self.end_headers()
                 return
+            # Decide inside the lock, answer outside it: a client that does not
+            # read its 503 must not hold every other new connection waiting.
             with Handler._clients_lock:
-                if Handler._active_clients >= max_clients:
-                    self.send_response(503)
-                    self.send_header("Content-Type", "text/plain")
-                    self.send_header("Retry-After", "5")
-                    self.end_headers()
-                    self.wfile.write(f"stream at its {max_clients}-client limit - retry shortly\n".encode("ascii"))
-                    return
-                Handler._active_clients += 1
+                over_limit = Handler._active_clients >= max_clients
+                if not over_limit:
+                    Handler._active_clients += 1
+            if over_limit:
+                self.send_response(503)
+                self.send_header("Content-Type", "text/plain")
+                self.send_header("Retry-After", "5")
+                self.end_headers()
+                self.wfile.write(f"stream at its {max_clients}-client limit - retry shortly\n".encode("ascii"))
+                return
             try:
                 self.send_response(200)
                 self.send_header("Content-Type", f"multipart/x-mixed-replace; boundary={MJPEG_BOUNDARY}")
@@ -363,7 +409,7 @@ def make_handler(source: MjpegCaptureSource, max_clients: int = DEFAULT_MAX_CLIE
                         # open forever; a real client (MjpegPlayer.kt,
                         # <img>) reconnects on its own.
                         break
-                    last_seen = source.frames_captured
+                    last_seen = frame.frame_id
                     # only the real JPEG payload ever reaches the
                     # wire - frame_id/session_id/capture_ts are this
                     # process's own internal identity, not part of the
@@ -404,18 +450,32 @@ def serve_camera(device: str, addr: str, port: int, width: int, height: int, fps
     (before binding a socket) if the device can't be opened at all -
     fails loud, matching this project's own "no guessed process" ethos
     (see HYDRA-UMC-SERVER's own SPI_BRIDGE_URL comment for the same
-    reasoning applied there)."""
+    reasoning applied there).
+
+    If the camera is lost and every reconnect attempt is used up, the server
+    stops and this raises CameraUnavailableError, so the process exits with an
+    error and its supervisor restarts it instead of leaving a port open that
+    serves nothing."""
     source = MjpegCaptureSource(device=device, width=width, height=height, fps=fps)
     source.start()
     try:
         server = ThreadingHTTPServer((addr, port), make_handler(source, max_clients))
-        logger.info("MJPEG stream for %s serving on http://%s:%s/stream", device, addr, port)
+        logger.info("MJPEG stream for %s serving on http://%s:%s/stream", source.display_device, addr, port)
+
+        def stop_when_given_up() -> None:
+            source.gave_up.wait()
+            server.shutdown()
+
+        threading.Thread(target=stop_when_given_up, name="mjpeg-give-up-watch", daemon=True).start()
         try:
             server.serve_forever()
         finally:
             server.server_close()
+        if source.gave_up.is_set():
+            raise CameraUnavailableError(source.last_error or f"gave up reconnecting to {source.display_device}")
     finally:
         source.stop()
+        source.gave_up.set()  # releases the watcher thread on a normal exit
 
 
 def discover_usb_devices(max_index: int = 10) -> list[dict]:

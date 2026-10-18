@@ -39,9 +39,11 @@
 * 🛠️ **动态配置：** 逐摄像头的分辨率、帧率和像素格式今天已经真实存在并会被校验（`config.py`）；曝光/增益控制需要真实的 V4L2 设备，属于未来工作。
 * 🧩 **为何作为独立项目存在：** 捕获/ISP 调优所需的技能和故障域与模型推理或安全逻辑不同——将其保持在独立进程中，意味着一个捕获方面的漏洞不会波及 [HYDRA-UMC-SAFETY-ZONES](https://github.com/JuanenRac/HYDRA-UMC-SAFETY-ZONES)，并且两者可以独立开发/测试。
 
-**诚实说明——今天实际运行的内容：** 配置校验、GStreamer 流水线描述生成、以及 MediaMTX 中继配置生成，以及真实的 HailoRT 集成边界（`config.py`、`pipeline.py`、`mediamtx_config.py`、`buffer.py`、`reconnect.py`、`hailo_runtime.py`）都是真实的并已经过测试（88 个测试）。其中没有任何一处会打开 V4L2 设备、导入 GStreamer，或与物理摄像头通信——真正运行生成的流水线需要本环境不具备的真实运行时和硬件。具体已交付内容请参见 `/stream` 通过 `--max-clients` 限制并发观看者数量（默认 5，超出返回真实的 503），以保护 CM5 有限的 Wi-Fi 上行带宽，并在观看者停止读取 30 秒后将其断开（套接字超时），因此卡住的客户端不会永远占用名额。
+**诚实说明——今天实际运行的内容：** 配置校验、GStreamer 流水线描述生成、以及 MediaMTX 中继配置生成，以及真实的 HailoRT 集成边界（`config.py`、`pipeline.py`、`mediamtx_config.py`、`buffer.py`、`reconnect.py`、`hailo_runtime.py`）都是真实的并已经过测试（105 个测试）。其中没有任何一处会打开 V4L2 设备、导入 GStreamer，或与物理摄像头通信——真正运行生成的流水线需要本环境不具备的真实运行时和硬件。具体已交付内容请参见 `/stream` 通过 `--max-clients` 限制并发观看者数量（默认 5，超出返回真实的 503），以保护 CM5 有限的 Wi-Fi 上行带宽，并在观看者停止读取 30 秒后将其断开（套接字超时），因此卡住的客户端不会永远占用名额。
 [`CHANGELOG.md`](CHANGELOG.md)，尚待完成的内容请参见下方"当前状态与
 后续步骤"章节。
+
+**多个观看者、健康检查与凭据：** 同一摄像头的每个观看者都能收到每一帧（共享缓冲区不再被第一个读取者消耗）；`GET /health` 在有帧到达时返回 `200`，否则返回 `503`（`connecting`、`stalled`、`given_up`）；当所有重连尝试用尽后，进程现在会以错误退出，而不是继续提供空流，从而让其监督程序重新启动它。RTSP URL 中的密码在日志和消息中会被屏蔽；请用 `--device-env VAR`（环境变量）而不是 `--device` 传入 URL，使其不出现在进程列表中。主机、设备和 RTSP 路径在写入生成的管道之前会被校验，IP 摄像头的管道使用带有界丢弃队列的 `rtspsrc`。
 
 ---
 
@@ -145,7 +147,7 @@ HYDRA-UMC-VISION-STREAMER/
 2. **虚拟环境** —— 若 `.venv/` 不存在则创建；否则复用。
 3. **可编辑安装** —— `pip install -e ".[dev]"`，使 `src/` 下的修改立即生效，安装 `pytest`，并注册 `hydra-umc-vision-streamer` 控制台入口点。
 4. **编译检查** —— `python -m compileall -q src` 对 `src/` 下每个文件进行字节码编译，即使某个文件从未被 `main.py` 导入，也能在整个生态系统范围内捕获语法错误。
-5. **真实测试套件** —— `python -m pytest tests/ -q`（88 个测试，覆盖 config、pipeline、MediaMTX 生成、缓冲/重连策略、HailoRT 集成边界和 CLI）。
+5. **真实测试套件** —— `python -m pytest tests/ -q`（105 个测试，覆盖 config、pipeline、MediaMTX 生成、缓冲/重连策略、HailoRT 集成边界和 CLI）。
 
 `set -euo pipefail` 会在第一个失败步骤处停止脚本；只有全部 5 个步骤均
 成功时，构建才会报告成功。
@@ -182,10 +184,10 @@ HYDRA-UMC-VISION-STREAMER/
 
 ```bash
 # USB/V4L2 设备
-./run.sh stream serve --device 0 --port 8090
+./run.sh stream serve --device 0 --port 8100
 
 # 真实的 RTSP IP 摄像头（已对真实硬件验证——见 CHANGELOG.md）
-./run.sh stream serve --device "rtsp://admin:secret@192.168.0.211:554/11" --port 8090 --width 1920 --height 1080 --fps 15
+CAMERA_URL="rtsp://admin:secret@192.168.0.211:554/11" ./run.sh stream serve --device-env CAMERA_URL --port 8100 --width 1920 --height 1080 --fps 15
 ```
 
 真实示例——模拟一个慢速消费者对抗一个有界缓冲区，以及一次断开的连接
@@ -219,7 +221,7 @@ run.bat
 
 ## 🚀 当前状态与后续步骤
 
-**今天已实现的内容：** 配置校验、GStreamer 流水线描述生成、以及 MediaMTX 中继配置生成（`config.py`、`pipeline.py`、`mediamtx_config.py`），一个真实的、可证明有界的缓冲区和一个真实的确定性重连策略（`buffer.py`、`reconnect.py`、`stream simulate`），一个真实的 HailoRT 集成边界（`hailo_runtime.py`），一旦真实的 Hailo-8 模块接入即可使用，以及一个真实的 v0 采集+推送路径（`mjpeg_server.py`、`stream serve`），通过 OpenCV 打开真实的 USB/V4L2 设备**或真实的 RTSP IP 摄像头**（`config.py` 中的 `source_type: "ip"`，`mjpeg_server.py` 中的 `cv2.CAP_FFMPEG`）并通过 HTTP 提供真实的 MJPEG - 可通过 `HYDRA-UMC-OS` 自身的 `provisioning/install_vision_streamer.sh` 安装到 CM5 上（每个由管理员分配的摄像头槽位对应一个 systemd 实例，`systemd/hydra-umc-vision-streamer@.service`），并已被 `HYDRA-UMC-SERVER` 的 `GET /api/camera/:id/stream` 代理和 `HYDRA-UMC-STUDIO` 的摄像头视图实时使用。IP 摄像头路径已对真实硬件完成端到端验证：本地网络上全部 4 台真实 IP 摄像头都通过这条完整的真实路径成功打开并传输了真实帧 - 共 88 个测试，再加上一个真实的、可安装的 Python 包，带有已验证的入口点，以及一个
+**今天已实现的内容：** 配置校验、GStreamer 流水线描述生成、以及 MediaMTX 中继配置生成（`config.py`、`pipeline.py`、`mediamtx_config.py`），一个真实的、可证明有界的缓冲区和一个真实的确定性重连策略（`buffer.py`、`reconnect.py`、`stream simulate`），一个真实的 HailoRT 集成边界（`hailo_runtime.py`），一旦真实的 Hailo-8 模块接入即可使用，以及一个真实的 v0 采集+推送路径（`mjpeg_server.py`、`stream serve`），通过 OpenCV 打开真实的 USB/V4L2 设备**或真实的 RTSP IP 摄像头**（`config.py` 中的 `source_type: "ip"`，`mjpeg_server.py` 中的 `cv2.CAP_FFMPEG`）并通过 HTTP 提供真实的 MJPEG - 可通过 `HYDRA-UMC-OS` 自身的 `provisioning/install_vision_streamer.sh` 安装到 CM5 上（每个由管理员分配的摄像头槽位对应一个 systemd 实例，`systemd/hydra-umc-vision-streamer@.service`），并已被 `HYDRA-UMC-SERVER` 的 `GET /api/camera/:id/stream` 代理和 `HYDRA-UMC-STUDIO` 的摄像头视图实时使用。IP 摄像头路径已对真实硬件完成端到端验证：本地网络上全部 4 台真实 IP 摄像头都通过这条完整的真实路径成功打开并传输了真实帧 - 共 105 个测试，再加上一个真实的、可安装的 Python 包，带有已验证的入口点，以及一个
 已接入构建流程的里程表式版本递增机制。具体已捕获的构建/运行输出见 [`CHANGELOG.md`](CHANGELOG.md)。
 
 **仍待完成、顺序不分先后、无既定时间表、且受限于真实硬件的内容：**

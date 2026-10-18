@@ -10,6 +10,15 @@ by 1 instead (e.g. `0.0.9` -> `0.1.0`), the same carry cascading into
 `MAJOR` if `MINOR` also exceeds 9. `MAJOR` is otherwise only ever bumped by
 hand.
 
+## [0.1.8] - Shared viewers, camera give-up, masked credentials and safe pipelines
+
+- **Every viewer gets every frame:** the capture buffer was shared and the first reader emptied it, so with two or three viewers on one camera the others were cut off on the first frame and reconnected in a loop. Readers now share the latest frame without consuming it, so `--max-clients` really allows several viewers.
+- **A camera that is gone ends the process:** after the last reconnect attempt the capture thread stopped but the server kept serving an empty stream, so neither systemd nor the server noticed. The process now stops and exits with an error, and the new `GET /health` answers `200` while frames arrive and `503` (`connecting`, `stalled`, `given_up`) otherwise.
+- **RTSP passwords stay out of logs:** the password inside an RTSP URL is masked in log lines, error messages and thread names, and `stream serve --device-env VAR` reads the URL from an environment variable so it does not appear in the process list.
+- **Generated pipelines are safe and correct:** devices must be `/dev/videoN` (or a by-id/by-path link), hosts must be hostnames or IP addresses, RTSP paths and `--rtsp-base` cannot carry GStreamer syntax; IPv6 hosts are bracketed and RTSP paths normalised. An IP camera pipeline now uses `rtspsrc` (it used `v4l2src` with an empty device) without printing the password, and both branches use leaky, bounded queues so a slow consumer cannot grow memory or stall the other branch.
+- **Smaller fixes:** `/stream?t=123` is served, a client that does not read its 503 no longer blocks new connections, `config validate` shows where an IP camera is, and an unused import is removed.
+- **Docs:** examples use port 8100 and the environment variable for the URL, and the README (all languages) describes viewers, health and credential handling (105 tests).
+
 ## [0.1.7] - Stalled viewers release their stream slot, Portuguese README
 
 - **A stalled viewer could hold a stream slot forever:** `/stream` caps concurrent viewers at `--max-clients` (default 5, a real 503 beyond that) to protect a CM5's Wi-Fi uplink, but the handler had no socket timeout. A client that opened `/stream` and then stopped reading (or never read at all) left its handler thread stuck in a write once the kernel buffers filled, and kept its slot until the process restarted - five such clients locked every real viewer out. A socket now times out after 30 seconds (`SOCKET_TIMEOUT_SECONDS`): a stalled client is dropped and its slot released, while a viewer that is merely slow keeps up with time to spare.

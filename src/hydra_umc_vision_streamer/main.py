@@ -19,6 +19,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import re
 import sys
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
@@ -61,7 +63,7 @@ def _cmd_config_validate(args: argparse.Namespace) -> int:
         return 1
     print(f"{len(cameras)} camera(s) in {args.config}")
     for camera in cameras:
-        print(f"  {camera.name}: {camera.device} {camera.width}x{camera.height}@{camera.fps} {camera.format}")
+        print(f"  {camera.name}: {camera.display_target()} {camera.width}x{camera.height}@{camera.fps} {camera.format}")
     print("config OK")
     return 0
 
@@ -79,6 +81,9 @@ def _cmd_config_gst(args: argparse.Namespace) -> int:
         return 1
     camera = matches[0]
 
+    if not re.fullmatch(r"rtsp://[A-Za-z0-9._:\[\]-]+(/[A-Za-z0-9._/~-]*)?", args.rtsp_base):
+        print(f"error: --rtsp-base {args.rtsp_base!r} is not a plain rtsp://host[:port][/path] URL", file=sys.stderr)
+        return 1
     rtsp_url = rtsp_url_for(camera, args.rtsp_base)
     print(build_capture_pipeline(camera, rtsp_url))
     return 0
@@ -156,8 +161,19 @@ def _cmd_stream_serve(args: argparse.Namespace) -> int:
     `config gst` above generates. Fails loud and fast (before ever
     binding the HTTP port) if the device can't be opened, matching the
     ecosystem's own "no guessed process" convention."""
+    device = args.device
+    if args.device_env:
+        # The device (an RTSP URL carries the camera's password) is read from the
+        # environment so that it does not appear in the process list.
+        device = os.environ.get(args.device_env, "")
+        if not device:
+            print(f"error: environment variable {args.device_env} is not set", file=sys.stderr)
+            return 1
+    if not device:
+        print("error: give --device or --device-env", file=sys.stderr)
+        return 1
     try:
-        serve_camera(args.device, args.addr, args.port, args.width, args.height, args.fps, args.max_clients)
+        serve_camera(device, args.addr, args.port, args.width, args.height, args.fps, args.max_clients)
     except CameraUnavailableError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
@@ -226,7 +242,12 @@ def _build_parser() -> argparse.ArgumentParser:
         "serve", help="Real MJPEG capture+serve from a USB/V4L2 device or a real RTSP IP camera (mjpeg_server.py) - the v0 path pipeline.py/mediamtx_config.py above still name as future work."
     )
     real.add_argument(
-        "--device", required=True,
+        "--device-env", dest="device_env", default=None, metavar="VAR",
+        help="Read the device (or RTSP URL, which carries the password) from this environment variable "
+             "instead of --device, so it does not show in the process list.",
+    )
+    real.add_argument(
+        "--device", default=None,
         help="USB: a bare V4L2 index (e.g. 0 for /dev/video0) or a full device path. "
              "IP camera: a full rtsp://user:pass@host:port/path URL (see CameraConfig.rtsp_url() "
              "in config.py to build one from a persisted camera-list JSON entry instead of typing "
