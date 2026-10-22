@@ -117,7 +117,7 @@ HYDRA-UMC-VISION-STREAMER/
 │   └── ci_validate.py   # Validazione manifest/CHANGELOG/docs usata dalla CI
 ├── pyproject.toml       # Metadati pacchetto, dipendenze, versione contachilometri
 ├── bump_manifest_version.py # Sincronizza la versione di hydra-umc.project.json con quella nativa (--sync)
-├── bump_version.py      # Incremento versione tipo contachilometri (build.sh/.bat)
+├── bump_version.py      # Incremento di versione stile contachilometri (eseguito solo dal comando `bump` esplicito)
 ├── build.sh / build.bat # venv + installazione editabile + compile-check + test
 ├── run.sh / run.bat     # Esegue l'entry point dal venv locale
 └── CHANGELOG.md         # Storico versione per versione (schema contachilometri, senza date)
@@ -142,7 +142,7 @@ Nessuna cartella `hardware/`, `firmware/`, `os/` o `models/` - vedi "Informazion
 ./build.sh
 ```
 
-1. **Incremento versione contachilometri** - esegue `bump_version.py`, incrementando `PATCH` in `pyproject.toml` a ogni build (con riporto a `MINOR`/`MAJOR` secondo la regola sopra).
+1. **Lettura della versione** - legge e stampa la versione del progetto; compilare non la cambia mai (solo `python tools/hydra_project_tool.py bump` la alza).
 2. **Ambiente virtuale** - crea `.venv/` se manca; lo riutilizza altrimenti.
 3. **Installazione editabile** - `pip install -e ".[dev]"` così le modifiche sotto `src/` hanno effetto immediato, installa `pytest`, e registra l'entry point da console `hydra-umc-vision-streamer`.
 4. **Compile-check** - `python -m compileall -q src` compila in bytecode ogni file sotto `src/`, individuando errori di sintassi in tutto il pacchetto.

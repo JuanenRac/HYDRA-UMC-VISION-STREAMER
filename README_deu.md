@@ -117,7 +117,7 @@ HYDRA-UMC-VISION-STREAMER/
 │   └── ci_validate.py   # Manifest/CHANGELOG/Docs-Validierung, von CI genutzt
 ├── pyproject.toml       # Paketmetadaten, Abhängigkeiten, Kilometerzähler-Version
 ├── bump_manifest_version.py # Synchronisiert die Version von hydra-umc.project.json mit der nativen (--sync)
-├── bump_version.py      # Kilometerzähler-artiger Versions-Bump (build.sh/.bat)
+├── bump_version.py      # Versionserhöhung im Kilometerzähler-Stil (nur vom expliziten `bump`-Befehl ausgeführt)
 ├── build.sh / build.bat # venv + editierbare Installation + Compile-Check + Tests
 ├── run.sh / run.bat     # Führt den Einstiegspunkt aus dem lokalen venv aus
 └── CHANGELOG.md         # Versions-für-Versions-Historie (Kilometerzähler-Schema, ohne Daten)
@@ -142,7 +142,7 @@ Kein `hardware/`-, `firmware/`-, `os/`- oder `models/`-Ordner - siehe "Erweitert
 ./build.sh
 ```
 
-1. **Kilometerzähler-Versions-Bump** - führt `bump_version.py` aus, das `PATCH` in `pyproject.toml` bei jedem Build erhöht (mit Übertrag auf `MINOR`/`MAJOR` nach obiger Regel).
+1. **Versionsprüfung** - liest und zeigt die Projektversion an; Bauen ändert sie nie (nur `python tools/hydra_project_tool.py bump` erhöht sie).
 2. **Virtuelle Umgebung** - erstellt `.venv/`, falls nicht vorhanden; verwendet es sonst weiter.
 3. **Editierbare Installation** - `pip install -e ".[dev]"`, sodass Änderungen unter `src/` sofort wirken, installiert `pytest`, und registriert den Konsolen-Einstiegspunkt `hydra-umc-vision-streamer`.
 4. **Compile-Check** - `python -m compileall -q src` kompiliert jede Datei unter `src/` zu Bytecode und findet so Syntaxfehler im gesamten Paket.

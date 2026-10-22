@@ -129,7 +129,7 @@ HYDRA-UMC-VISION-STREAMER/
 │   └── ci_validate.py   # CI 使用的清单/CHANGELOG/文档校验
 ├── pyproject.toml       # 包元数据、依赖项、里程表版本号
 ├── bump_manifest_version.py # 将 hydra-umc.project.json 的版本与原生版本同步(--sync)
-├── bump_version.py      # 里程表式版本递增（由 build.sh/.bat 运行）
+├── bump_version.py      # 里程表式版本递增（仅由显式 `bump` 命令运行）
 ├── build.sh / build.bat # venv + 可编辑安装 + 编译检查 + 测试
 ├── run.sh / run.bat     # 从本地 venv 运行入口点
 └── CHANGELOG.md         # 逐版本历史（里程表方案，无日期）
@@ -156,7 +156,7 @@ HYDRA-UMC-VISION-STREAMER/
 ./build.sh
 ```
 
-1. **里程表式版本递增** —— 运行 `bump_version.py`，每次构建时在 `pyproject.toml` 中递增 `PATCH`（按上述规则进位到 `MINOR`/`MAJOR`）。
+1. **版本读取** —— 读取并显示项目版本；构建绝不会更改它（只有 `python tools/hydra_project_tool.py bump` 才会提升）。
 2. **虚拟环境** —— 若 `.venv/` 不存在则创建；否则复用。
 3. **可编辑安装** —— `pip install -e ".[dev]"`，使 `src/` 下的修改立即生效，安装 `pytest`，并注册 `hydra-umc-vision-streamer` 控制台入口点。
 4. **编译检查** —— `python -m compileall -q src` 对 `src/` 下每个文件进行字节码编译，即使某个文件从未被 `main.py` 导入，也能在整个生态系统范围内捕获语法错误。

@@ -116,7 +116,7 @@ HYDRA-UMC-VISION-STREAMER/
 │   ├── build_test.py    # Verificação de compilação sem subir a versão (sem subida de versão/CHANGELOG)
 │   └── ci_validate.py   # Validação de manifesto/CHANGELOG/documentação usada pelo CI
 ├── pyproject.toml       # Metadados do pacote, dependências, versão ao estilo conta-quilómetros
-├── bump_version.py      # Subida de versão nativa ao estilo conta-quilómetros (executada pelo build.sh/.bat)
+├── bump_version.py      # Subida de versão ao estilo conta-quilómetros (executada só pelo comando `bump` explícito)
 ├── bump_manifest_version.py # Sincroniza a versão do hydra-umc.project.json com a nativa (--sync)
 ├── build.sh / build.bat # venv + instalação editável + verificação de compilação + testes
 ├── run.sh / run.bat     # Executa o ponto de entrada a partir do venv local
@@ -142,7 +142,7 @@ Sem pastas `hardware/`, `firmware/`, `os/` nem `models/` - veja "Informação t�
 ./build.sh
 ```
 
-1. **Subida de versão ao estilo conta-quilómetros** - executa o `bump_version.py`, incrementando o `PATCH` no `pyproject.toml` em cada compilação (transitando para `MINOR`/`MAJOR` segundo a regra acima).
+1. **Leitura da versão** - lê e mostra a versão do projeto; compilar nunca a altera (só `python tools/hydra_project_tool.py bump` a sobe).
 2. **Ambiente virtual** - cria o `.venv/` se não existir; reutiliza-o caso contrário.
 3. **Instalação editável** - `pip install -e ".[dev]"` para que as edições em `src/` tenham efeito de imediato, instala o `pytest` e regista o ponto de entrada de consola `hydra-umc-vision-streamer`.
 4. **Verificação de compilação** - `python -m compileall -q src` compila para bytecode todos os ficheiros de `src/`, apanhando erros de sintaxe em todo o ecossistema mesmo em ficheiros que o `main.py` nunca importa.

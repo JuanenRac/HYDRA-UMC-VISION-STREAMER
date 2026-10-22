@@ -134,7 +134,7 @@ HYDRA-UMC-VISION-STREAMER/
 │   └── ci_validate.py   # CI が使用するマニフェスト/CHANGELOG/ドキュメント検証
 ├── pyproject.toml       # パッケージメタデータ、依存関係、オドメーターバージョン
 ├── bump_manifest_version.py # hydra-umc.project.json のバージョンをネイティブ版と同期(--sync)
-├── bump_version.py      # オドメーター式バージョンインクリメント（build.sh/.bat が実行）
+├── bump_version.py      # オドメーター式バージョンインクリメント（明示的な `bump` コマンドのみが実行）
 ├── build.sh / build.bat # venv + editable インストール + コンパイルチェック + テスト
 ├── run.sh / run.bat     # ローカル venv からエントリポイントを実行
 └── CHANGELOG.md         # バージョンごとの履歴（オドメーター方式、日付なし）
@@ -161,7 +161,7 @@ HYDRA-UMC-VISION-STREAMER/
 ./build.sh
 ```
 
-1. **オドメーター式バージョンインクリメント** — `bump_version.py` を実行し、ビルドのたびに `pyproject.toml` 内の `PATCH` を増加させます（上記の規則に従って `MINOR`/`MAJOR` に繰り上がります）。
+1. **バージョンの確認** — プロジェクトのバージョンを読み取って表示します。ビルドがバージョンを変更することはありません（上げるのは `python tools/hydra_project_tool.py bump` だけです）。
 2. **仮想環境** — `.venv/` が存在しない場合は作成し、存在する場合は再利用します。
 3. **Editable インストール** — `pip install -e ".[dev]"` により `src/` 下の変更が即座に反映され、`pytest` がインストールされ、`hydra-umc-vision-streamer` コンソールエントリポイントが登録されます。
 4. **コンパイルチェック** — `python -m compileall -q src` が `src/` 下の各ファイルをバイトコンパイルし、あるファイルが `main.py` から一度もインポートされない場合でも、エコシステム全体にわたる構文エラーを検出します。
