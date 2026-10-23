@@ -26,7 +26,7 @@
 |---|---|
 | 版本 | `0.2.0` |
 | 成熟度 | 成熟 |
-| 测试 | 109 |
+| 测试 | 118 |
 | 技术栈 | Python / GStreamer / MediaMTX |
 | 目标 | HYDRA-UMC 工作单元的 Raspberry Pi CM5 |
 | 真实硬件 | 已在试验台上运行：上面的诚实性检查说明了哪些部分在真实硬件上运行过 |
@@ -42,6 +42,7 @@
 
 ### 关键要点
 
+* 🔑 **可选的 Bearer 令牌：** 在回环地址上视频流不需要令牌；在非回环地址上，没有令牌就拒绝启动（`--token-file` 或 `HYDRA_UMC_VISION_STREAMER_TOKEN`）。设置令牌后，请求 `/stream` 必须带 `Authorization: Bearer <token>`（恒定时间比较）；只有 `GET /health` 保持开放。*(已实现)*
 * ✅ **真实 v0 —— 配置、流水线与中继生成：** `config.py` 校验逐摄像头的 JSON 配置（设备、分辨率、fps、格式）；`pipeline.py` 为一台摄像头生成真实的 GStreamer 流水线描述；`mediamtx_config.py` 生成对应的 MediaMTX `paths.yml`。通过下方的 `config validate`/`config gst`/`config mediamtx` 暴露——运行或测试都不需要 GStreamer 运行时、V4L2 或物理摄像头。
 * 📷 **真实 v0 —— USB 与 RTSP IP 摄像头采集+推流：** `mjpeg_server.py` 的 `stream serve` 真的会打开一台摄像头，并通过 HTTP 提供真实的 MJPEG——可以是 USB/V4L2 设备（`--device 0`），也可以是通过 RTSP 的真实 IP 摄像头（`--device rtsp://用户名:密码@主机:端口/路径`，经由 OpenCV 的 `cv2.CAP_FFMPEG` 后端，无需额外依赖）。`config.py` 的 `CameraConfig` 现在带有真实的 `source_type`（默认为 `"usb"`，或 `"ip"` 并带有 `host`/`rtsp_port`/`rtsp_path`/`username`/`password`，以及一个真实的、带百分号编码的 `rtsp_url()` 构造器）。已对真实硬件完成端到端验证：本地网络上全部 4 台真实 IP 摄像头都通过这条完全相同的路径成功打开并传输了真实的 MJPEG/H.264 帧（第二对摄像头需要它们自己真实的 RTSP 路径 `profile0`，是在摄像头自身的配置界面上找到的——与第一对摄像头的 `/11` 不同，并非凭据或固件问题）。
 * 🔁 **真实 v0 —— 有界缓冲与重连：** `buffer.py` 的 `FrameBuffer` 是一个固定容量的队列，满了之后会丢弃最旧的（而不是最新的）条目——这是一个实时中继所需要的真实背压策略，能确保一个慢速消费者永远不会让本进程的内存无限增长。`reconnect.py` 的 `ConnectionTracker` 是针对断开的摄像头/中继链路的真实的、确定性的指数退避重连策略。`mjpeg_server.py` 自身真实的采集路径缓冲的是一个 `Frame`(而不仅仅是原始字节)——带有真实的 `frame_id`/`session_id`/`capture_ts` 身份标识，每次真实重连都会获得一个真正全新的 `session_id`，因此断线前后的帧永远不会被混淆为同一条连续流。通过下方的 `stream simulate` 暴露——完全无需 GStreamer 或物理摄像头即可测试。

@@ -26,7 +26,7 @@
 |---|---|
 | バージョン | `0.2.0` |
 | 成熟度 | 確立 |
-| テスト | 109 |
+| テスト | 118 |
 | 技術 | Python / GStreamer / MediaMTX |
 | 対象 | HYDRA-UMC セルの Raspberry Pi CM5 |
 | 実機での確認 | ベンチ環境で動作：上の正直さの確認に、どの部分が実機で動いたかが書かれています |
@@ -47,6 +47,7 @@ USB 3.0 カメラストリームを同時に低レベルでキャプチャ、前
 
 ### 要点
 
+* 🔑 **任意の Bearer トークン：** ループバックではストリームにトークンは不要で、ループバック以外ではトークンなしでは起動しません（`--token-file` または `HYDRA_UMC_VISION_STREAMER_TOKEN`）。トークンを設定すると `/stream` は `Authorization: Bearer <token>` 付きで要求する必要があります（一定時間での比較）。`GET /health` だけは開いたままです。*(実装済み)*
 * ✅ **実装済み v0 —— 設定・パイプライン・リレー生成：** `config.py` はカメラごとの JSON 設定（デバイス、解像度、fps、フォーマット）を検証し、`pipeline.py` はあるカメラの実際の GStreamer パイプライン記述を生成し、`mediamtx_config.py` は対応する MediaMTX の `paths.yml` を生成します。下記の `config validate`/`config gst`/`config mediamtx` から利用可能で、実行にもテストにも GStreamer ランタイム、V4L2、物理カメラは不要です。
 * 📷 **実装済み v0 —— USB および RTSP IP カメラのキャプチャ+配信：** `mjpeg_server.py` の `stream serve` は実際にカメラを開き、HTTP 経由で本物の MJPEG を配信します——USB/V4L2 デバイス（`--device 0`）、または実際の RTSP IP カメラ（`--device rtsp://user:pass@host:port/path`、OpenCV の `cv2.CAP_FFMPEG` バックエンド経由、追加の依存関係なし）。`config.py` の `CameraConfig` は今では実際の `source_type` を持ちます（デフォルトは `"usb"`、または `"ip"` で `host`/`rtsp_port`/`rtsp_path`/`username`/`password` と実際にパーセントエンコードする `rtsp_url()` ビルダーを持ちます）。実機に対してエンドツーエンドで検証済み：ローカルネットワーク上の実際の IP カメラ 4 台すべてがこの同じ経路で開き、本物の MJPEG/H.264 フレームを配信しました（2 台目のペアは、カメラ自身の設定画面で見つけた独自の実際の RTSP パス `profile0` が必要でした——1 台目のペアの `/11` とは異なるパスで、認証情報やファームウェアの問題ではありませんでした）。
 * 🔁 **実装済み v0 —— 有界バッファリングと再接続：** `buffer.py` の `FrameBuffer` は満杯になると最も古い項目(最新のものではない)を破棄する固定容量のキューです——遅い消費者がこのプロセス自体のメモリを無制限に増加させることを決して許さない、ライブリレーが必要とする実際のバックプレッシャーポリシーです。`reconnect.py` の `ConnectionTracker` は、切断されたカメラ/リレーリンクのための実際の、決定論的な指数バックオフ再接続ポリシーです。`mjpeg_server.py` 自身の実際のキャプチャ経路は、単なる生バイトではなく `Frame` をバッファします——実際の `frame_id`/`session_id`/`capture_ts` 識別情報を持ち、実際の再接続のたびに本物の新しい `session_id` が割り当てられるため、切断前後のフレームが1つの連続したストリームとして混同されることはありません。下記の `stream simulate` から利用可能で、GStreamer や物理カメラなしで完全にテスト可能です。

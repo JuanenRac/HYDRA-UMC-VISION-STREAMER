@@ -45,6 +45,7 @@ from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse
 
+from .access import authorized, reject
 from .buffer import FrameBuffer
 from .config import redact_credentials
 from .reconnect import ConnectionState, ConnectionTracker, default_policy
@@ -356,7 +357,7 @@ class MjpegCaptureSource:
             return self._buffer.peek_latest()
 
 
-def make_handler(source: MjpegCaptureSource, max_clients: int = DEFAULT_MAX_CLIENTS) -> type[BaseHTTPRequestHandler]:
+def make_handler(source: MjpegCaptureSource, max_clients: int = DEFAULT_MAX_CLIENTS, token: str = "") -> type[BaseHTTPRequestHandler]:
     """Builds a request handler bound to one specific capture source - the
     real HTTP wire format HYDRA-UMC-SERVER's own proxy and every real
     client (MjpegPlayer.kt, CameraPIP) already expect: a `multipart/x-mixed-replace`
@@ -366,7 +367,11 @@ def make_handler(source: MjpegCaptureSource, max_clients: int = DEFAULT_MAX_CLIE
     once - shared across every request via a class-level counter/lock
     (ThreadingHTTPServer spawns one handler instance per connection, so
     per-instance state can't track this). A request over the limit gets
-    a real 503 immediately, before ever touching the capture source."""
+    a real 503 immediately, before ever touching the capture source.
+
+    `token`, when not empty, is the Bearer token every request but GET /health
+    must present (see access.py); empty means no token, which is only allowed
+    on loopback."""
 
     class Handler(BaseHTTPRequestHandler):
         _clients_lock = threading.Lock()
@@ -392,6 +397,9 @@ def make_handler(source: MjpegCaptureSource, max_clients: int = DEFAULT_MAX_CLIE
                 self.send_header("Content-Length", str(len(body)))
                 self.end_headers()
                 self.wfile.write(body)
+                return
+            if not authorized(self, token):
+                reject(self)
                 return
             if path not in ("/stream", "/"):
                 self.send_response(404)
@@ -459,7 +467,7 @@ def make_handler(source: MjpegCaptureSource, max_clients: int = DEFAULT_MAX_CLIE
     return Handler
 
 
-def serve_camera(device: str, addr: str, port: int, width: int, height: int, fps: int, max_clients: int = DEFAULT_MAX_CLIENTS) -> None:
+def serve_camera(device: str, addr: str, port: int, width: int, height: int, fps: int, max_clients: int = DEFAULT_MAX_CLIENTS, token: str = "") -> None:
     """Real, blocking entry point: opens `device`, starts capturing, and
     serves the real MJPEG stream at http://addr:port/stream until
     interrupted. Raises CameraUnavailableError/RuntimeError immediately
@@ -475,7 +483,7 @@ def serve_camera(device: str, addr: str, port: int, width: int, height: int, fps
     source = MjpegCaptureSource(device=device, width=width, height=height, fps=fps)
     source.start()
     try:
-        server = ThreadingHTTPServer((addr, port), make_handler(source, max_clients))
+        server = ThreadingHTTPServer((addr, port), make_handler(source, max_clients, token))
         logger.info("MJPEG stream for %s serving on http://%s:%s/stream", source.display_device, addr, port)
 
         def stop_when_given_up() -> None:

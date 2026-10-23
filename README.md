@@ -26,7 +26,7 @@
 |---|---|
 | Version | `0.2.0` |
 | Maturity | Established |
-| Tests | 109 |
+| Tests | 118 |
 | Stack | Python / GStreamer / MediaMTX |
 | Target | The Raspberry Pi CM5 of a HYDRA-UMC cell |
 | On real hardware | Run on a bench setup: the honesty check above says which parts ran on real hardware |
@@ -41,6 +41,7 @@ This is one of the 4 children of **[HYDRA-UMC-VISION-NODE](https://github.com/Ju
 
 ### Key Points
 
+* 🔑 **Optional Bearer token:** on loopback the stream needs no token; away from loopback it refuses to start without one (`--token-file` or `HYDRA_UMC_VISION_STREAMER_TOKEN`). With a token set, `/stream` must be requested with `Authorization: Bearer <token>` (constant-time comparison); only `GET /health` stays open. *(implemented)*
 * ✅ **Real v0 - config, pipeline, and relay generation:** `config.py` validates a per-camera JSON config (device, resolution, fps, format); `pipeline.py` generates the exact GStreamer pipeline description for a camera; `mediamtx_config.py` generates the matching MediaMTX `paths.yml`. Exposed via `config validate`/`config gst`/`config mediamtx` below - no GStreamer runtime, V4L2, or physical camera needed to run or test any of it.
 * 📷 **Real v0 - USB and RTSP IP camera capture+serve:** `mjpeg_server.py`'s `stream serve` actually opens a camera and serves real MJPEG over HTTP - a USB/V4L2 device (`--device 0`) or a real RTSP IP camera (`--device rtsp://user:pass@host:port/path`, via OpenCV's `cv2.CAP_FFMPEG` backend, no extra dependency). `config.py`'s `CameraConfig` now carries a real `source_type` (`"usb"` default, or `"ip"` with `host`/`rtsp_port`/`rtsp_path`/`username`/`password` and a real, percent-encoded `rtsp_url()` builder). Verified end to end against real hardware: all 4 real IP cameras on the local network opened and streamed real MJPEG/H.264 frames through this exact path (the 2nd pair needed their own real RTSP path, `profile0`, found on the camera's own config screen - a different path than the first pair's `/11`, not a credential or firmware issue).
 * 🔁 **Real v0 - bounded buffering and reconnection:** `buffer.py`'s `FrameBuffer` is a fixed-capacity queue that drops the OLDEST frame (never the newest) once full - the real backpressure policy a live relay needs so a slow consumer can never make this process's memory grow without bound. `reconnect.py`'s `ConnectionTracker` is a real, deterministic exponential-backoff reconnect policy for a dropped camera/relay link. `mjpeg_server.py`'s own real capture path buffers a `Frame` (not just bare bytes) - a real `frame_id`/`session_id`/`capture_ts` identity, with a genuinely new `session_id` on every real reconnect, so two frames from before/after a dropped link are never conflated as one continuous stream. Exposed via `stream simulate` below - fully testable without GStreamer or a physical camera.

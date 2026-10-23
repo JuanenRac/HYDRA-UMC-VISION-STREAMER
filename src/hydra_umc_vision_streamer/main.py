@@ -25,6 +25,7 @@ import sys
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
+from .access import bind_problem, load_token
 from .buffer import FrameBuffer
 from .config import ConfigError, load_cameras
 from .mediamtx_config import build_mediamtx_paths_yaml, rtsp_url_for
@@ -173,7 +174,16 @@ def _cmd_stream_serve(args: argparse.Namespace) -> int:
         print("error: give --device or --device-env", file=sys.stderr)
         return 1
     try:
-        serve_camera(device, args.addr, args.port, args.width, args.height, args.fps, args.max_clients)
+        token = load_token(args.token_file)
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    problem = bind_problem(args.addr, token)
+    if problem:
+        print(f"error: {problem}", file=sys.stderr)
+        return 2
+    try:
+        serve_camera(device, args.addr, args.port, args.width, args.height, args.fps, args.max_clients, token)
     except CameraUnavailableError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
@@ -261,6 +271,10 @@ def _build_parser() -> argparse.ArgumentParser:
     real.add_argument(
         "--max-clients", type=int, default=DEFAULT_MAX_CLIENTS, dest="max_clients",
         help=f"Maximum concurrent /stream viewers before a 503 is returned (default: {DEFAULT_MAX_CLIENTS})",
+    )
+    real.add_argument(
+        "--token-file", default=None, dest="token_file",
+        help="File with the bearer token every request but GET /health must present (or the HYDRA_UMC_VISION_STREAMER_TOKEN environment variable). Needed to bind an address that is not loopback.",
     )
     real.set_defaults(func=_cmd_stream_serve)
 

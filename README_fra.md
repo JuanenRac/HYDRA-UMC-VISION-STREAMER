@@ -26,7 +26,7 @@
 |---|---|
 | Version | `0.2.0` |
 | Maturité | Établi |
-| Tests | 109 |
+| Tests | 118 |
 | Technologie | Python / GStreamer / MediaMTX |
 | Cible | Le Raspberry Pi CM5 d'une cellule HYDRA-UMC |
 | Sur matériel réel | Exécuté sur un banc d'essai : la vérification d'honnêteté ci-dessus indique quelles parties ont tourné sur du matériel réel |
@@ -41,6 +41,7 @@ C'est l'un des 4 enfants de **[HYDRA-UMC-VISION-NODE](https://github.com/JuanenR
 
 ### Points Clés
 
+* 🔑 **Jeton Bearer optionnel :** sur loopback le flux n'a pas besoin de jeton ; hors loopback il refuse de démarrer sans (`--token-file` ou `HYDRA_UMC_VISION_STREAMER_TOKEN`). Avec un jeton configuré, `/stream` doit être demandé avec `Authorization: Bearer <token>` (comparaison en temps constant) ; seul `GET /health` reste ouvert. *(implémenté)*
 * ✅ **Réel v0 - génération de config, pipeline et relais :** `config.py` valide une config JSON par caméra (périphérique, résolution, fps, format) ; `pipeline.py` génère la description réelle du pipeline GStreamer pour une caméra ; `mediamtx_config.py` génère le `paths.yml` MediaMTX correspondant. Exposé via `config validate`/`config gst`/`config mediamtx` ci-dessous - aucun runtime GStreamer, V4L2, ou caméra physique nécessaire pour l'exécuter ou le tester.
 * 📷 **Réel v0 - capture+diffusion de caméras USB et IP par RTSP :** `stream serve` de `mjpeg_server.py` ouvre réellement une caméra et diffuse du vrai MJPEG par HTTP - un périphérique USB/V4L2 (`--device 0`) ou une vraie caméra IP par RTSP (`--device rtsp://utilisateur:motdepasse@host:port/chemin`, via le backend `cv2.CAP_FFMPEG` d'OpenCV, sans dépendance supplémentaire). Le `CameraConfig` de `config.py` porte désormais un vrai `source_type` (`"usb"` par défaut, ou `"ip"` avec `host`/`rtsp_port`/`rtsp_path`/`username`/`password` et un constructeur `rtsp_url()` réel avec percent-encoding). Vérifié de bout en bout sur du matériel réel : les 4 vraies caméras IP du réseau local se sont ouvertes et ont diffusé de vraies trames MJPEG/H.264 par ce même chemin (la 2ème paire avait besoin de son propre chemin RTSP réel, `profile0`, trouvé sur l'écran de config de la caméra elle-même - un chemin différent du `/11` de la première paire, pas un problème d'identifiants ou de firmware).
 * 🔁 **Réel v0 - mise en tampon bornée et reconnexion :** `FrameBuffer` de `buffer.py` est une file à capacité fixe qui rejette l'élément le PLUS ANCIEN (jamais le plus récent) une fois pleine - la vraie politique de contre-pression dont un relais en direct a besoin pour qu'un consommateur lent ne puisse jamais faire croître indéfiniment la mémoire de ce processus. `ConnectionTracker` de `reconnect.py` est une vraie politique de reconnexion déterministe à backoff exponentiel pour un lien caméra/relais tombé. Le vrai chemin de capture de `mjpeg_server.py` met en tampon un `Frame` (pas seulement des octets bruts) - une vraie identité `frame_id`/`session_id`/`capture_ts`, avec un `session_id` réellement nouveau à chaque reconnexion réelle, afin que deux trames d'avant/après un lien tombé ne soient jamais confondues comme un flux continu unique. Exposé via `stream simulate` ci-dessous - entièrement testable sans GStreamer ni caméra physique.
