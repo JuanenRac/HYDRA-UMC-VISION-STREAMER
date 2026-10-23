@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # =============================================================================
-# HYDRA-UMC-VISION-STREAMER - tools/build_test.py
+# HYDRA-UMC - tools/build_test.py
 # Copyright (C) 2026 JuanenRac (Electro Hobby 3D) <electrohobby3d@gmail.com>
 # GPL-3.0-or-later - see LICENSE
 # =============================================================================
@@ -59,19 +59,6 @@ def main() -> int:
 
     if stack in {"python", "python-bare"}:
         compile_python_sources()
-        # Real gap found live while adding mjpeg_server.py's own real
-        # tests: this generic template only ever syntax-checked Python
-        # sources, never actually ran this repo's real, passing pytest
-        # suite (tests/) - a real regression could pass build_test.py
-        # cleanly. src/ isn't installed (no editable pip install step
-        # anywhere in this repo's own docs), so PYTHONPATH is set
-        # directly rather than assuming one.
-        tests_dir = ROOT / "tests"
-        if tests_dir.is_dir():
-            python = sys.executable
-            environment = dict(os.environ)
-            environment["PYTHONPATH"] = str(ROOT / "src")
-            run(python, "-m", "pytest", str(tests_dir), env=environment)
     elif stack == "node":
         npm = "npm.cmd" if os.name == "nt" else "npm"
         # Reuse an existing local dependency tree so a running editor/linter
@@ -130,6 +117,13 @@ def main() -> int:
             run("bash", "build_firmware.sh", env=environment)
     else:
         fail(f"unsupported stack: {stack}")
+
+    # The steps a repository has of its own (its tests, its verifiers, a second toolchain) live in
+    # tools/extra_build_steps.py, so this file stays identical everywhere. It runs from the repository root with the
+    # same environment, after the build of the stack above, and a non-zero exit fails the build test.
+    extra_steps = ROOT / "tools" / "extra_build_steps.py"
+    if extra_steps.is_file():
+        run(sys.executable, str(extra_steps))
 
     print("BUILD_TEST=PASS versioning=unchanged changelog=unchanged")
     return 0
