@@ -26,7 +26,7 @@
 |---|---|
 | Versione | `0.2.0` |
 | Maturità | Consolidato |
-| Test | 105 |
+| Test | 109 |
 | Tecnologia | Python / GStreamer / MediaMTX |
 | Destinazione | Il Raspberry Pi CM5 di una cella HYDRA-UMC |
 | Su hardware reale | Eseguito su un banco di prova: la verifica di onestà qui sopra indica quali parti hanno girato su hardware reale |
@@ -35,7 +35,7 @@
 
 **HYDRA-UMC-VISION-STREAMER** è pensato per essere lo strato di ingestione media ad alte prestazioni della famiglia Vision AI Node. Il suo compito è la cattura a basso livello, il pre-processamento e la distribuzione fino a 8 flussi camera USB 3.0 concorrenti, usando l'ISP accelerato via hardware del Broadcom BCM2712 (CM5) per conversione dello spazio colore, ridimensionamento e normalizzazione prima che i fotogrammi raggiungano la NPU Hailo-8.
 
-**Più spettatori, salute e credenziali:** ogni spettatore di una telecamera riceve tutti i frame (il buffer condiviso non viene più consumato dal primo lettore), `GET /health` risponde `200` finché arrivano frame e `503` altrimenti (`connecting`, `stalled`, `given_up`), e se i tentativi di riconnessione sono esauriti il processo ora termina con un errore invece di servire un flusso vuoto, così il suo supervisore lo riavvia. Le password negli URL RTSP sono mascherate nei log e nei messaggi; passa l'URL con `--device-env VAR` (una variabile d'ambiente) invece di `--device` perché non compaia nell'elenco dei processi. Host, dispositivi e percorsi RTSP vengono validati prima di essere scritti in una pipeline generata, e la pipeline di una telecamera IP usa `rtspsrc` con code limitate che scartano.
+**Più spettatori, salute e credenziali:** ogni spettatore di una telecamera riceve tutti i frame (il buffer condiviso non viene più consumato dal primo lettore), `GET /health` risponde `200` finché arrivano frame e `503` altrimenti (`connecting`, `stalled`, `given_up`), e se i tentativi di riconnessione sono esauriti il processo ora termina con un errore invece di servire un flusso vuoto, così il suo supervisore lo riavvia. Le password negli URL RTSP sono mascherate nei log e nei messaggi; passa l'URL con `--device-env VAR` (una variabile d'ambiente) invece di `--device` perché non compaia nell'elenco dei processi. Host, dispositivi e percorsi RTSP vengono validati prima di essere scritti in una pipeline generata, e la pipeline di una telecamera IP usa `rtspsrc` con code limitate che scartano. Tutto ciò che lo streamer registra passa ora anche dalla redazione dei segreti condivisa (token, valori di `password=` e intestazioni bearer oltre alle credenziali degli URL), lo stesso modulo e gli stessi vettori di test degli altri progetti.
 
 Questo è uno dei 4 figli di **[HYDRA-UMC-VISION-NODE](https://github.com/JuanenRac/HYDRA-UMC-VISION-NODE)**, il genitore di integrazione della famiglia: questo progetto possiede solo cattura/pre-processamento, e non esegue la propria inferenza Hailo-8, API gRPC o logica di sicurezza - questo è deliberatamente suddiviso tra i suoi 3 fratelli.
 

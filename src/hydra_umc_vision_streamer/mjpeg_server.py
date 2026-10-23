@@ -51,6 +51,22 @@ from .reconnect import ConnectionState, ConnectionTracker, default_policy
 
 logger = logging.getLogger(__name__)
 
+
+class _SecretFilter(logging.Filter):
+    """Every line this module logs passes through the shared redaction: a camera address with a
+    password, or a token in an error message, never reaches the log."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        try:
+            record.msg = redact_credentials(record.getMessage())
+            record.args = ()
+        except Exception:  # noqa: BLE001 - logging must never fail because of the filter
+            pass
+        return True
+
+
+logger.addFilter(_SecretFilter())
+
 MJPEG_BOUNDARY = "hydraumcframe"
 
 # Real gap found while auditing the code: nothing capped how many
@@ -215,7 +231,7 @@ class MjpegCaptureSource:
         try:
             new_cap = self._open_capture()
         except CameraUnavailableError as exc:
-            self.last_error = str(exc)
+            self.last_error = redact_credentials(str(exc))
             attempts_tried = tracker.attempt
             delay = tracker.on_reconnect_failed()
             if delay is not None:

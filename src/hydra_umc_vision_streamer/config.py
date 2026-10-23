@@ -37,6 +37,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import quote
 
+from .log_redaction import redact_secrets
+
 ALLOWED_FORMATS = ("MJPG", "YUYV", "H264")
 ALLOWED_SOURCE_TYPES = ("usb", "ip")
 MAX_CAMERAS = 8
@@ -62,9 +64,10 @@ _CREDENTIALS_IN_URL_RE = re.compile(r"([A-Za-z][A-Za-z0-9+.-]*://)[^/\s]*@")
 
 
 def redact_credentials(text: str) -> str:
-    """`text` with the user:password part of every URL replaced by ***, for
+    """`text` with the user:password part of every URL replaced by ***, and every other secret
+    shape the shared redaction knows (tokens, passwords after a key, bearer headers), for
     anything that is logged, named or shown to a person."""
-    return _CREDENTIALS_IN_URL_RE.sub(r"\1***@", text)
+    return redact_secrets(_CREDENTIALS_IN_URL_RE.sub(r"\1***@", text))
 
 
 def is_valid_host(host: str) -> bool:
