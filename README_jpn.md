@@ -241,8 +241,7 @@ run.bat
 ## 🚀 現在の状況と次のステップ
 
 **今日実現していること：** 設定の検証、GStreamer パイプライン記述の生成、そして MediaMTX リレー設定の生成（`config.py`、`pipeline.py`、`mediamtx_config.py`）、実際の、証明可能な有界バッファと実際の決定論的な再接続ポリシー（`buffer.py`、`reconnect.py`、`stream simulate`）、実際の Hailo-8 モジュールが接続され次第すぐに使える実際の HailoRT 統合境界（`hailo_runtime.py`）、そして OpenCV 経由で実際の USB/V4L2 デバイス**または実際の RTSP IP カメラ**（`config.py` の `source_type: "ip"`、`mjpeg_server.py` の `cv2.CAP_FFMPEG`）を開き、実際の MJPEG を HTTP 経由で配信する実際の v0 キャプチャ＋配信パス（`mjpeg_server.py`、`stream serve`） - `HYDRA-UMC-OS` 自身の `provisioning/install_vision_streamer.sh` により CM5 にインストール可能（管理者が割り当てたカメラスロットごとに 1 つの systemd インスタンス、`systemd/hydra-umc-vision-streamer@.service`）で、すでに `HYDRA-UMC-SERVER` の `GET /api/camera/:id/stream` プロキシと `HYDRA-UMC-STUDIO` のカメラビューによってライブで利用されている。IP カメラ経路は実機に対してエンドツーエンドで検証済み：ローカルネットワーク上の実際の IP カメラ 4 台すべてがこの完全な実経路を通じて開き、本物のフレームを配信しました - 合計 105 個のテスト、さらに検証済みのエントリポイントを持つ実際のインストール
-可能な Python パッケージ、そしてビルドに組み込まれた
-オドメーター式バージョンインクリメント。実際に取得されたビルド/実行出力については
+可能な Python パッケージ、そして、バージョンを上げる明示的な `bump` コマンド（オドメーター式。ビルドがバージョンを変えることはありません）。実際に取得されたビルド/実行出力については
 [`CHANGELOG.md`](CHANGELOG.md) を参照してください。
 
 **まだ残っている作業（順不同、確定した期限なし、実際のハードウェアに阻まれている）：**
