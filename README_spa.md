@@ -24,9 +24,9 @@
 
 | | |
 |---|---|
-| Versión | `0.2.0` |
+| Versión | `0.2.1` |
 | Madurez | Establecido |
-| Tests | 118 |
+| Tests | 109 |
 | Tecnología | Python / GStreamer / MediaMTX |
 | Destino | La Raspberry Pi CM5 de una celda HYDRA-UMC |
 | En hardware real | Ejecutado en un banco de pruebas: la comprobación de honestidad de arriba dice qué partes funcionaron en hardware real |

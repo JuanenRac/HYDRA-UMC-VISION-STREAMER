@@ -24,9 +24,9 @@
 
 | | |
 |---|---|
-| Version | `0.2.0` |
+| Version | `0.2.1` |
 | Maturity | Established |
-| Tests | 118 |
+| Tests | 109 |
 | Stack | Python / GStreamer / MediaMTX |
 | Target | The Raspberry Pi CM5 of a HYDRA-UMC cell |
 | On real hardware | Run on a bench setup: the honesty check above says which parts ran on real hardware |
