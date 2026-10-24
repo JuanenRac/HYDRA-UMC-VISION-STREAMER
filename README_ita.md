@@ -29,7 +29,20 @@
 | Test | 109 |
 | Tecnologia | Python / GStreamer / MediaMTX |
 | Destinazione | Il Raspberry Pi CM5 di una cella HYDRA-UMC |
-| Su hardware reale | Eseguito su un banco di prova: la verifica di onestà qui sopra indica quali parti hanno girato su hardware reale |
+| Su hardware reale | Non ancora: per questa versione non risulta alcuna esecuzione su hardware reale |
+
+## 🚦 Stato del progetto
+
+Ogni riga è una parte di questo repository e il semaforo dice a che punto è oggi. È scritta in base a ciò che il repository può mostrare (test, compilazioni, esecuzioni), non a ciò che è previsto.
+
+🟢 Fatto e verificato · 🟡 Funziona, con limiti noti · 🟠 Fatto a metà o non ancora verificato · 🔴 Non fatto o non funzionante
+
+| Area | Stato | Cosa significa qui |
+|---|---|---|
+| Software | 🟢 | Completo per il suo scopo e stabile; la verifica di onestà qui sopra elenca i limiti noti |
+| Test | 🟢 | 109 test automatici, eseguiti a ogni modifica |
+| Hardware reale | 🔴 | Non ancora: per questa versione non risulta alcuna esecuzione su hardware reale |
+| Documentazione | 🟢 | README in otto lingue, verificato rispetto al manifesto a ogni modifica |
 
 ## 1. 🛠️ PANORAMICA TECNICA
 

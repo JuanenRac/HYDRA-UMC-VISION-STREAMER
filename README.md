@@ -29,7 +29,20 @@
 | Tests | 109 |
 | Stack | Python / GStreamer / MediaMTX |
 | Target | The Raspberry Pi CM5 of a HYDRA-UMC cell |
-| On real hardware | Run on a bench setup: the honesty check above says which parts ran on real hardware |
+| On real hardware | Not yet: no run on real hardware is recorded for this version |
+
+## 🚦 Project status
+
+Each line is one part of this repository and the light says how far it is today. It is written from what the repository can show (tests, builds, runs), not from what is planned.
+
+🟢 Done and verified · 🟡 Works, with known limits · 🟠 Partly done or not verified yet · 🔴 Not done or not working
+
+| Area | State | What it means here |
+|---|---|---|
+| Software | 🟢 | Complete for its purpose and stable; the honesty check above lists the known limits |
+| Tests | 🟢 | 109 automated tests, run on every change |
+| Real hardware | 🔴 | Not yet: no run on real hardware is recorded for this version |
+| Documentation | 🟢 | README in eight languages, checked against the manifest on every change |
 
 ## 1. 🛠️ TECHNICAL OVERVIEW
 
