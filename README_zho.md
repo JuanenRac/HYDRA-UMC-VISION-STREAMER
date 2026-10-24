@@ -124,6 +124,7 @@ STM32H745/STM32G474 板卡不同，CM5 + Hailo-8 是现成硬件，没有需要�
 HYDRA-UMC-VISION-STREAMER/
 ├── src/                 # 源代码（hydra_umc_vision_streamer 包）
 │   └── hydra_umc_vision_streamer/
+│       ├── __init__.py          # 包说明与版本
 │       ├── config.py           # 逐摄像头配置的解析/校验
 │       ├── pipeline.py         # GStreamer 流水线描述生成
 │       ├── mediamtx_config.py  # MediaMTX paths.yml 生成
@@ -131,6 +132,8 @@ HYDRA-UMC-VISION-STREAMER/
 │       ├── reconnect.py        # 真实的确定性重连/退避策略
 │       ├── hailo_runtime.py    # 真实的 HailoRT(hailo_platform)集成边界,延迟导入
 │       ├── mjpeg_server.py     # 真实的 MJPEG 服务器 - 真正通过 HTTP 提供 USB 摄像头或 RTSP IP 摄像头画面
+│       ├── access.py           # HTTP API 的可选 Bearer 令牌 (本机回环无需,非回环时必须)
+│       ├── log_redaction.py    # 文本和类 JSON 值中机密的共享脱敏 (SDK 规范模块的副本)
 │       └── main.py             # CLI 入口点（裸调用 + `config`/`stream`）
 ├── tests/               # 真实 pytest 套件（config、pipeline、mediamtx、buffer、reconnect、hailo_runtime、mjpeg_server、CLI）
 ├── docs/                # 文档与调优指南

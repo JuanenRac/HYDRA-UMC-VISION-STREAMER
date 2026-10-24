@@ -112,6 +112,7 @@ L'élément `Tee` dans le diagramme ci-dessus est la décision de conception cl�
 HYDRA-UMC-VISION-STREAMER/
 ├── src/                 # Code source (paquet hydra_umc_vision_streamer)
 │   └── hydra_umc_vision_streamer/
+│       ├── __init__.py          # Description et version du paquet
 │       ├── config.py           # Analyse/validation de la config par caméra
 │       ├── pipeline.py         # Génération de la description du pipeline GStreamer
 │       ├── mediamtx_config.py  # Génération du paths.yml MediaMTX
@@ -119,6 +120,8 @@ HYDRA-UMC-VISION-STREAMER/
 │       ├── reconnect.py        # Vraie politique déterministe de reconnexion/backoff
 │       ├── hailo_runtime.py    # Véritable limite d'intégration HailoRT (hailo_platform), importée paresseusement
 │       ├── mjpeg_server.py     # Vrai serveur MJPEG - sert réellement l'image d'une webcam USB ou d'une caméra IP par RTSP via HTTP
+│       ├── access.py           # Jeton Bearer facultatif pour l'API HTTP (inutile en boucle locale, obligatoire en dehors)
+│       ├── log_redaction.py    # Expurgation partagée des secrets dans le texte et les valeurs de type JSON (copie du module canonique du SDK)
 │       └── main.py             # Point d'entrée CLI (invocation nue + `config`/`stream`)
 ├── tests/               # Suite pytest réelle (config, pipeline, mediamtx, buffer, reconnect, hailo_runtime, mjpeg_server, CLI)
 ├── docs/                # Documentation et guides de réglage
