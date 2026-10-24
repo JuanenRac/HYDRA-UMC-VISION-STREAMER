@@ -131,9 +131,9 @@ HYDRA-UMC-VISION-STREAMER/
 │   └── hydra_umc_vision_streamer/
 │       ├── config.py           # カメラごとの設定の解析/検証
 │       ├── pipeline.py         # GStreamer パイプライン記述の生成
+│       ├── mediamtx_config.py  # MediaMTX paths.yml の生成
 │       ├── buffer.py           # 実際の有界バッファ（drop-oldest バックプレッシャー）
 │       ├── reconnect.py        # 実際の決定論的な再接続/バックオフポリシー
-│       ├── mediamtx_config.py  # MediaMTX paths.yml の生成
 │       ├── hailo_runtime.py    # 実際のHailoRT(hailo_platform)統合境界、遅延インポート
 │       ├── mjpeg_server.py     # 実際のMJPEGサーバー - USBウェブカメラまたはRTSP IPカメラの映像を実際にHTTP経由で配信
 │       └── main.py             # CLI エントリポイント（素の呼び出し + `config`/`stream`）
@@ -146,10 +146,14 @@ HYDRA-UMC-VISION-STREAMER/
 │   └── cameras.env.example                 # インスタンスごとの環境ファイルの例
 ├── tools/
 │   ├── build_test.py    # バージョンを増やさないビルドチェック
-│   └── ci_validate.py   # CI が使用するマニフェスト/CHANGELOG/ドキュメント検証
+│   ├── ci_validate.py   # CI が使用するマニフェスト/CHANGELOG/ドキュメント検証
+│   ├── _doc_policy.py   # ファミリー共通のドキュメント規則 (HYDRA-UMC-SDK のコピーで、同期を維持)
+│   ├── _readme_parity.py # 8つの README が同じ構造であることの検査 (HYDRA-UMC-SDK のコピーで、同期を維持)
+│   ├── hydra_project_tool.py # すべてのリポジトリで共通のコマンド: validate、test、ci、version、status、bump
+│   └── extra_build_steps.py # 共通のビルドテストに加えた、このリポジトリ固有のビルド手順 (独自のユニットテスト)
 ├── pyproject.toml       # パッケージメタデータ、依存関係、オドメーターバージョン
-├── bump_manifest_version.py # hydra-umc.project.json のバージョンをネイティブ版と同期(--sync)
 ├── bump_version.py      # オドメーター式バージョンインクリメント（明示的な `bump` コマンドのみが実行）
+├── bump_manifest_version.py # hydra-umc.project.json のバージョンをネイティブ版と同期(--sync)
 ├── build.sh / build.bat # venv + editable インストール + コンパイルチェック + テスト
 ├── run.sh / run.bat     # ローカル venv からエントリポイントを実行
 └── CHANGELOG.md         # バージョンごとの履歴（オドメーター方式、日付なし）

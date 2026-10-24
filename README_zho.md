@@ -126,9 +126,9 @@ HYDRA-UMC-VISION-STREAMER/
 │   └── hydra_umc_vision_streamer/
 │       ├── config.py           # 逐摄像头配置的解析/校验
 │       ├── pipeline.py         # GStreamer 流水线描述生成
+│       ├── mediamtx_config.py  # MediaMTX paths.yml 生成
 │       ├── buffer.py           # 真实的有界缓冲区（drop-oldest 背压策略）
 │       ├── reconnect.py        # 真实的确定性重连/退避策略
-│       ├── mediamtx_config.py  # MediaMTX paths.yml 生成
 │       ├── hailo_runtime.py    # 真实的 HailoRT(hailo_platform)集成边界,延迟导入
 │       ├── mjpeg_server.py     # 真实的 MJPEG 服务器 - 真正通过 HTTP 提供 USB 摄像头或 RTSP IP 摄像头画面
 │       └── main.py             # CLI 入口点（裸调用 + `config`/`stream`）
@@ -141,10 +141,14 @@ HYDRA-UMC-VISION-STREAMER/
 │   └── cameras.env.example                 # 每实例环境文件示例
 ├── tools/
 │   ├── build_test.py    # 不递增版本号的构建检查
-│   └── ci_validate.py   # CI 使用的清单/CHANGELOG/文档校验
+│   ├── ci_validate.py   # CI 使用的清单/CHANGELOG/文档校验
+│   ├── _doc_policy.py   # 家族共享的文档规则 (HYDRA-UMC-SDK 的副本,保持同步)
+│   ├── _readme_parity.py # 检查八个 README 结构一致 (HYDRA-UMC-SDK 的副本,保持同步)
+│   ├── hydra_project_tool.py # 每个仓库相同的命令: validate、test、ci、version、status、bump
+│   └── extra_build_steps.py # 除共享构建测试外,本仓库自己的构建步骤 (自带的单元测试)
 ├── pyproject.toml       # 包元数据、依赖项、里程表版本号
-├── bump_manifest_version.py # 将 hydra-umc.project.json 的版本与原生版本同步(--sync)
 ├── bump_version.py      # 里程表式版本递增（仅由显式 `bump` 命令运行）
+├── bump_manifest_version.py # 将 hydra-umc.project.json 的版本与原生版本同步(--sync)
 ├── build.sh / build.bat # venv + 可编辑安装 + 编译检查 + 测试
 ├── run.sh / run.bat     # 从本地 venv 运行入口点
 └── CHANGELOG.md         # 逐版本历史（里程表方案，无日期）

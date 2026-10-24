@@ -114,9 +114,9 @@ HYDRA-UMC-VISION-STREAMER/
 │   └── hydra_umc_vision_streamer/
 │       ├── config.py           # Parsing/validazione della config per camera
 │       ├── pipeline.py         # Generazione della descrizione della pipeline GStreamer
+│       ├── mediamtx_config.py  # Generazione del paths.yml MediaMTX
 │       ├── buffer.py           # Vero buffer limitato (contropressione drop-oldest)
 │       ├── reconnect.py        # Vera politica deterministica di riconnessione/backoff
-│       ├── mediamtx_config.py  # Generazione del paths.yml MediaMTX
 │       ├── hailo_runtime.py    # Vero limite di integrazione HailoRT (hailo_platform), importato in modo lazy
 │       ├── mjpeg_server.py     # Vero server MJPEG - serve realmente l'immagine di una webcam USB o di una telecamera IP via RTSP via HTTP
 │       └── main.py             # Entry point CLI (invocazione nuda + `config`/`stream`)
@@ -129,10 +129,14 @@ HYDRA-UMC-VISION-STREAMER/
 │   └── cameras.env.example                 # File di ambiente di esempio per istanza
 ├── tools/
 │   ├── build_test.py    # Controllo build senza versionamento
-│   └── ci_validate.py   # Validazione manifest/CHANGELOG/docs usata dalla CI
+│   ├── ci_validate.py   # Validazione manifest/CHANGELOG/docs usata dalla CI
+│   ├── _doc_policy.py   # Regole di documentazione condivise dalla famiglia (copia di quella di HYDRA-UMC-SDK, mantenuta sincronizzata)
+│   ├── _readme_parity.py # Verifica che gli otto README abbiano la stessa struttura (copia di quella di HYDRA-UMC-SDK, mantenuta sincronizzata)
+│   ├── hydra_project_tool.py # Gli stessi comandi in ogni repository: validate, test, ci, version, status, bump
+│   └── extra_build_steps.py # I passi di compilazione propri di questo repository oltre al test di compilazione condiviso (i suoi unit test)
 ├── pyproject.toml       # Metadati pacchetto, dipendenze, versione contachilometri
-├── bump_manifest_version.py # Sincronizza la versione di hydra-umc.project.json con quella nativa (--sync)
 ├── bump_version.py      # Incremento di versione stile contachilometri (eseguito solo dal comando `bump` esplicito)
+├── bump_manifest_version.py # Sincronizza la versione di hydra-umc.project.json con quella nativa (--sync)
 ├── build.sh / build.bat # venv + installazione editabile + compile-check + test
 ├── run.sh / run.bat     # Esegue l'entry point dal venv locale
 └── CHANGELOG.md         # Storico versione per versione (schema contachilometri, senza date)

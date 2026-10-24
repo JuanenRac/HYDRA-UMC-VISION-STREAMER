@@ -129,10 +129,14 @@ HYDRA-UMC-VISION-STREAMER/
 │   └── cameras.env.example                 # Archivo de entorno de ejemplo por instancia
 ├── tools/
 │   ├── build_test.py    # Comprobación de compilación sin versionado
-│   └── ci_validate.py   # Validación de manifiesto/CHANGELOG/docs usada por CI
+│   ├── ci_validate.py   # Validación de manifiesto/CHANGELOG/docs usada por CI
+│   ├── _doc_policy.py   # Reglas de documentación compartidas por la familia (copia de la de HYDRA-UMC-SDK, mantenida en sincronía)
+│   ├── _readme_parity.py # Comprobación de que los ocho README comparten estructura (copia de la de HYDRA-UMC-SDK, mantenida en sincronía)
+│   ├── hydra_project_tool.py # Los mismos comandos en todos los repositorios: validate, test, ci, version, status, bump
+│   └── extra_build_steps.py # Los pasos de compilación propios de este repositorio además de la prueba de compilación compartida (sus tests unitarios)
 ├── pyproject.toml       # Metadatos del paquete, dependencias, versión cuentakilómetros
-├── bump_manifest_version.py # Sincroniza la versión de hydra-umc.project.json con la nativa (--sync)
 ├── bump_version.py      # Incremento de versión tipo cuentakilómetros (solo lo ejecuta el comando `bump` explícito)
+├── bump_manifest_version.py # Sincroniza la versión de hydra-umc.project.json con la nativa (--sync)
 ├── build.sh / build.bat # venv + instalación editable + compile-check + tests
 ├── run.sh / run.bat     # Ejecuta el entry point desde el venv local
 └── CHANGELOG.md         # Historial versión a versión (esquema cuentakilómetros, sin fechas)
