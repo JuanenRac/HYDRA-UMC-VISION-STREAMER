@@ -340,6 +340,11 @@ class MjpegCaptureSource:
             "last_error": self.last_error,
         }
 
+    def latest_frame(self) -> Frame | None:
+        """The newest frame, or None when none has arrived yet. Does not wait and does not consume it."""
+        with self._lock:
+            return self._buffer.peek_latest()
+
     def wait_for_frame(self, last_seen: int, timeout: float = 5.0) -> Frame | None:
         """Blocks until a frame newer than `frames_captured == last_seen`
         is available (or `timeout` elapses), then returns the latest one -
@@ -357,11 +362,45 @@ class MjpegCaptureSource:
             return self._buffer.peek_latest()
 
 
+def _part_header(frame: Frame) -> bytes:
+    """The header of one multipart part. Besides the JPEG's type and length it carries the identity of the frame - which capture session
+    produced it, its number inside that session and the instant (milliseconds since the epoch) the sensor saw it - so whoever reads the stream
+    can tell how old a frame is and whether two frames are the same one. A client that does not know the extra headers ignores them: a browser
+    does, and MjpegPlayer.kt looks for the JPEG markers and never reads the part headers."""
+    return (
+        f"--{MJPEG_BOUNDARY}\r\nContent-Type: image/jpeg\r\nContent-Length: {len(frame.payload)}\r\n"
+        f"X-Frame-Id: {frame.frame_id}\r\nX-Session-Id: {_header_safe(frame.session_id)}\r\nX-Capture-Ts: {int(frame.capture_ts * 1000)}\r\n\r\n"
+    ).encode("ascii")
+
+
+def _header_safe(text: str) -> str:
+    """The text with anything that could end a header line or is not printable ASCII removed."""
+    return "".join(c for c in str(text) if 32 < ord(c) < 127)[:64]
+
+
+def _latest_info(frame: Frame | None, now: float | None = None) -> dict:
+    """What `GET /latest.json` answers: the identity and age of the newest frame, or that there is none."""
+    if frame is None:
+        return {"available": False}
+    seen = time.time() if now is None else now
+    return {
+        "available": True,
+        "frame_id": frame.frame_id,
+        "session_id": _header_safe(frame.session_id),
+        "capture_ts_ms": int(frame.capture_ts * 1000),
+        "data_age_ms": max(0, int((seen - frame.capture_ts) * 1000)),
+        "bytes": len(frame.payload),
+    }
+
+
 def make_handler(source: MjpegCaptureSource, max_clients: int = DEFAULT_MAX_CLIENTS, token: str = "") -> type[BaseHTTPRequestHandler]:
     """Builds a request handler bound to one specific capture source - the
     real HTTP wire format HYDRA-UMC-SERVER's own proxy and every real
     client (MjpegPlayer.kt, CameraPIP) already expect: a `multipart/x-mixed-replace`
     stream of real `Content-Type: image/jpeg` parts.
+
+    Routes: `GET /health` (open), `GET /stream` (or `/`), `GET /latest.jpg` (the newest frame as one JPEG) and `GET /latest.json` (its
+    identity and age). The last three need the token.
 
     `max_clients` bounds how many /stream connections can be open at
     once - shared across every request via a class-level counter/lock
@@ -372,10 +411,131 @@ def make_handler(source: MjpegCaptureSource, max_clients: int = DEFAULT_MAX_CLIE
     `token`, when not empty, is the Bearer token every request but GET /health
     must present (see access.py); empty means no token, which is only allowed
     on loopback."""
+    return _build_handler({"": source}, max_clients, token)
+
+
+def make_multi_handler(cameras: dict[str, MjpegCaptureSource], max_clients: int = DEFAULT_MAX_CLIENTS, token: str = "") -> type[BaseHTTPRequestHandler]:
+    """One handler for several cameras served by this one process: `GET /<name>/stream`, `/<name>/latest.jpg`, `/<name>/latest.json` and
+    `/<name>/health`, and `GET /health` for the whole process (healthy only while every camera is). `max_clients` applies to each camera."""
+    if not cameras:
+        raise ValueError("at least one camera is needed")
+    for name in cameras:
+        if not name or not all(c.isalnum() or c in "-_." for c in name):
+            raise ValueError(f"camera name {name!r} cannot be used in an address")
+    return _build_handler(dict(cameras), max_clients, token)
+
+
+def _build_handler(sources: dict[str, MjpegCaptureSource], max_clients: int, token: str) -> type[BaseHTTPRequestHandler]:
+    multi = "" not in sources
+    lock = threading.Lock()
+    active_by_camera: dict[str, int] = {name: 0 for name in sources}
+
+    # The helpers below are plain functions of the handler instance (not methods), so a test can drive `do_GET` with a stand-in that only has
+    # what a request needs (path, wfile and the three send_* calls).
+    def reply_json(h, status: int, payload: dict) -> None:
+        body = json.dumps(payload).encode("utf-8")
+        h.send_response(status)
+        h.send_header("Content-Type", "application/json")
+        h.send_header("Content-Length", str(len(body)))
+        h.end_headers()
+        h.wfile.write(body)
+
+    def health_of(source) -> dict:
+        return source.health() if hasattr(source, "health") else {"state": "unknown", "healthy": True}
+
+    def resolve(path: str):
+        """The camera a path is about and what is left of the path, or None for a path that names no camera."""
+        if not multi:
+            return "", sources[""], path
+        parts = path.split("/", 2)  # "", name, rest
+        if len(parts) >= 2 and parts[1] in sources:
+            return parts[1], sources[parts[1]], "/" + (parts[2] if len(parts) > 2 else "")
+        return None
+
+    def serve_latest(h, source, as_json: bool) -> None:
+        frame = source.latest_frame() if hasattr(source, "latest_frame") else None
+        if as_json:
+            reply_json(h, 200 if frame is not None else 503, _latest_info(frame))
+            return
+        if frame is None:
+            h.send_response(503)
+            h.send_header("Retry-After", "1")
+            h.end_headers()
+            return
+        h.send_response(200)
+        h.send_header("Content-Type", "image/jpeg")
+        h.send_header("Content-Length", str(len(frame.payload)))
+        h.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+        h.send_header("X-Frame-Id", str(frame.frame_id))
+        h.send_header("X-Session-Id", _header_safe(frame.session_id))
+        h.send_header("X-Capture-Ts", str(int(frame.capture_ts * 1000)))
+        h.end_headers()
+        h.wfile.write(frame.payload)
+
+    def take_slot(handler_cls, name: str) -> bool:
+        with lock:
+            active = active_by_camera[name] if multi else handler_cls._active_clients
+            if active >= max_clients:
+                return False
+            if multi:
+                active_by_camera[name] += 1
+            else:
+                handler_cls._active_clients += 1
+            return True
+
+    def release_slot(handler_cls, name: str) -> None:
+        with lock:
+            if multi:
+                active_by_camera[name] -= 1
+            else:
+                handler_cls._active_clients -= 1
+
+    def serve_stream(h, handler_cls, name: str, source) -> None:
+        # Decide inside the lock, answer outside it: a client that does not
+        # read its 503 must not hold every other new connection waiting.
+        if not take_slot(handler_cls, name):
+            h.send_response(503)
+            h.send_header("Content-Type", "text/plain")
+            h.send_header("Retry-After", "5")
+            h.end_headers()
+            h.wfile.write(f"stream at its {max_clients}-client limit - retry shortly\n".encode("ascii"))
+            return
+        try:
+            h.send_response(200)
+            h.send_header("Content-Type", f"multipart/x-mixed-replace; boundary={MJPEG_BOUNDARY}")
+            h.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+            h.send_header("Pragma", "no-cache")
+            h.end_headers()
+            last_seen = 0
+            while True:
+                frame = source.wait_for_frame(last_seen, timeout=10.0)
+                if frame is None:
+                    # A genuinely stalled camera (no new frame in 10s) -
+                    # end this connection cleanly rather than hold it
+                    # open forever; a real client (MjpegPlayer.kt,
+                    # <img>) reconnects on its own.
+                    break
+                last_seen = frame.frame_id
+                # the JPEG itself is what every client reads; the identity of the frame travels in the
+                # extra part headers (see _part_header), which a client that does not know them ignores
+                h.wfile.write(_part_header(frame))
+                h.wfile.write(frame.payload)
+                h.wfile.write(b"\r\n")
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError, TimeoutError):
+            # A client disconnecting mid-stream is normal, not an error
+            # to log - ConnectionAbortedError is Windows' own name for
+            # the same real condition BrokenPipeError/ConnectionResetError
+            # cover on Linux. ThreadingHTTPServer isolates it to the one
+            # request thread either way; this only keeps stderr quiet.
+            pass
+        finally:
+            # Reached only after the slot was taken above (the 503 path
+            # returns before this try/finally), so this always has a
+            # real slot of its own to release.
+            release_slot(handler_cls, name)
 
     class Handler(BaseHTTPRequestHandler):
-        _clients_lock = threading.Lock()
-        _active_clients = 0
+        _active_clients = 0  # the one camera of the single-camera handler
 
         # Seconds any single read or write on a client's socket may block. Without it, a
         # client that opens /stream and then stops reading (or never reads at all) leaves
@@ -390,79 +550,35 @@ def make_handler(source: MjpegCaptureSource, max_clients: int = DEFAULT_MAX_CLIE
         def do_GET(self) -> None:  # noqa: N802 - stdlib method name
             path = urlparse(self.path).path
             if path == "/health":
-                report = source.health() if hasattr(source, "health") else {"state": "unknown", "healthy": True}
-                body = json.dumps(report).encode("utf-8")
-                self.send_response(200 if report.get("healthy") else 503)
-                self.send_header("Content-Type", "application/json")
-                self.send_header("Content-Length", str(len(body)))
-                self.end_headers()
-                self.wfile.write(body)
+                if multi:
+                    reports = {name: health_of(src) for name, src in sources.items()}
+                    healthy = all(r.get("healthy") for r in reports.values())
+                    reply_json(self, 200 if healthy else 503, {"healthy": healthy, "cameras": reports})
+                else:
+                    report = health_of(sources[""])
+                    reply_json(self, 200 if report.get("healthy") else 503, report)
                 return
             if not authorized(self, token):
                 reject(self)
                 return
-            if path not in ("/stream", "/"):
+            resolved = resolve(path)
+            if resolved is None:
                 self.send_response(404)
                 self.end_headers()
                 return
-            # Decide inside the lock, answer outside it: a client that does not
-            # read its 503 must not hold every other new connection waiting.
-            with Handler._clients_lock:
-                over_limit = Handler._active_clients >= max_clients
-                if not over_limit:
-                    Handler._active_clients += 1
-            if over_limit:
-                self.send_response(503)
-                self.send_header("Content-Type", "text/plain")
-                self.send_header("Retry-After", "5")
-                self.end_headers()
-                self.wfile.write(f"stream at its {max_clients}-client limit - retry shortly\n".encode("ascii"))
+            name, source, rest = resolved
+            if rest == "/health":
+                report = health_of(source)
+                reply_json(self, 200 if report.get("healthy") else 503, report)
                 return
-            try:
-                self.send_response(200)
-                self.send_header("Content-Type", f"multipart/x-mixed-replace; boundary={MJPEG_BOUNDARY}")
-                self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
-                self.send_header("Pragma", "no-cache")
+            if rest in ("/latest.jpg", "/latest.json"):
+                serve_latest(self, source, rest.endswith(".json"))
+                return
+            if rest not in ("/stream", "/"):
+                self.send_response(404)
                 self.end_headers()
-                last_seen = 0
-                while True:
-                    frame = source.wait_for_frame(last_seen, timeout=10.0)
-                    if frame is None:
-                        # A genuinely stalled camera (no new frame in 10s) -
-                        # end this connection cleanly rather than hold it
-                        # open forever; a real client (MjpegPlayer.kt,
-                        # <img>) reconnects on its own.
-                        break
-                    last_seen = frame.frame_id
-                    # only the real JPEG payload ever reaches the
-                    # wire - frame_id/session_id/capture_ts are this
-                    # process's own internal identity, not part of the
-                    # multipart/x-mixed-replace contract every real
-                    # client (MjpegPlayer.kt, CameraPIP) already expects
-                    # unchanged.
-                    header = f"--{MJPEG_BOUNDARY}\r\nContent-Type: image/jpeg\r\nContent-Length: {len(frame.payload)}\r\n\r\n".encode("ascii")
-                    self.wfile.write(header)
-                    self.wfile.write(frame.payload)
-                    self.wfile.write(b"\r\n")
-            except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError, TimeoutError):
-                # A client disconnecting mid-stream is normal, not an error
-                # to log - ConnectionAbortedError is Windows' own name for
-                # the same real condition BrokenPipeError/ConnectionResetError
-                # cover on Linux (confirmed live: a curl client
-                # cutting a real IP-camera stream short raised exactly this
-                # on this Windows dev machine, printing an unhandled
-                # traceback to stderr for a perfectly normal disconnect
-                # until this was added - ThreadingHTTPServer still isolates
-                # it to the one request thread either way, so this was never
-                # a crash risk the way HYDRA-UMC-SERVER's own equivalent gap
-                # was, just noisy).
-                pass
-            finally:
-                # Reached only after the increment above (the 503 path
-                # returns before this try/finally), so this always has a
-                # real slot of its own to release.
-                with Handler._clients_lock:
-                    Handler._active_clients -= 1
+                return
+            serve_stream(self, Handler, name, source)
 
     return Handler
 
@@ -500,6 +616,49 @@ def serve_camera(device: str, addr: str, port: int, width: int, height: int, fps
     finally:
         source.stop()
         source.gave_up.set()  # releases the watcher thread on a normal exit
+
+
+def serve_cameras(
+    cameras: dict[str, tuple[str, int, int, int]],
+    addr: str,
+    port: int,
+    max_clients: int = DEFAULT_MAX_CLIENTS,
+    token: str = "",
+) -> None:
+    """All the cameras in one process and one port (`GET /<name>/stream` ...), instead of a process, an interpreter and a copy of OpenCV for
+    each camera. `cameras` maps a name to `(device, width, height, fps)`. Every camera is opened before the port is bound, and if one cannot
+    be opened none is left running. If any camera is lost for good the whole process stops, so the supervisor restarts it: a half-working
+    set of cameras behind one healthy-looking port would hide the lost one."""
+    sources: dict[str, MjpegCaptureSource] = {}
+    try:
+        for name, (device, width, height, fps) in cameras.items():
+            source = MjpegCaptureSource(device=device, width=width, height=height, fps=fps)
+            source.start()
+            sources[name] = source
+        server = ThreadingHTTPServer((addr, port), make_multi_handler(sources, max_clients, token))
+        logger.info("MJPEG streams for %d camera(s) serving on http://%s:%s/<name>/stream", len(sources), addr, port)
+        stop = threading.Event()
+
+        def stop_when_any_gives_up() -> None:
+            while not stop.is_set():
+                for source in sources.values():
+                    if source.gave_up.is_set():
+                        server.shutdown()
+                        return
+                stop.wait(0.5)
+
+        threading.Thread(target=stop_when_any_gives_up, name="mjpeg-give-up-watch", daemon=True).start()
+        try:
+            server.serve_forever()
+        finally:
+            stop.set()
+            server.server_close()
+        for source in sources.values():
+            if source.gave_up.is_set():
+                raise CameraUnavailableError(source.last_error or f"gave up reconnecting to {source.display_device}")
+    finally:
+        for source in sources.values():
+            source.stop()
 
 
 def discover_usb_devices(max_index: int = 10) -> list[dict]:

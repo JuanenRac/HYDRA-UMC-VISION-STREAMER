@@ -49,7 +49,8 @@
 * 📡 **RTSP/WebRTC 支持（部分计划中）：** RTSP 中继路径（`rtspclientsink` → MediaMTX）已经设计完成，其配置在上方已真实生成；真正运行它需要本环境不具备的 GStreamer 运行时。WebRTC 输出仍完全处于计划阶段。
 * 🔌 **HailoRT 集成边界，先于模块本身准备就绪：** `hailo_runtime.py` 依据真实、已确认的 `hailo_platform` API(`VDevice`、`HEF`、`ConfigureParams`)编写——采用延迟导入,因此即使没有安装 `hailort` 包或没有 Hailo-8 模块存在,本仓库也能干净地安装/测试——此外还具备真实的预检验证,在向设备推送任何一帧之前,确认摄像头配置的分辨率确实与已加载模型的输入张量形状相匹配。*(已实现,仅为集成边界——真正运行推理并解析真实模型的 NMS 输出仍是未来的工作。)*
 * ⚡ **零拷贝流水线（计划中）：** 设计 V4L2 与 HailoRT 之间的缓冲区交接，以避免不必要的帧拷贝。*（未来工作——需要本环境尚不具备的真实 V4L2/HailoRT 运行时。）*
-* 🌈 **硬件预处理（计划中）：** 使用树莓派的 ISP 进行实时缩放和像素格式转换，卸载原本每帧都需 CPU 承担的工作。*（未来工作，原因相同。）*
+* 🌈 **预处理（计划中，后端尚待选定）：** 实时缩放和像素格式转换，卸载原本每帧都需 CPU 承担的工作。树莓派 5 的 ISP（PiSP）通过 libcamera 服务 CSI 接口的摄像头，不服务 USB 摄像头；对 USB 摄像头，转换将在 CPU 或 V4L2 内存到内存模块上进行，这一点尚未调研也未选定。*（未来工作：需要真实的 V4L2 运行时和本环境没有的摄像头。）*
+* 🪪 **帧标识、最新帧以及单进程多摄像头：** MJPEG 流的每个部分都带有 `X-Frame-Id`、`X-Session-Id` 和 `X-Capture-Ts`（传感器交付该帧时的纪元毫秒数），使消费者能算出一帧有多旧；`GET /latest.jpg` 和 `GET /latest.json` 在不保持流打开的情况下返回最新帧及其标识和时龄。`stream serve --config cams.json --camera 名称` 从列表中读取设备、尺寸和帧率（以及 IP 摄像头的 RTSP 凭据），因此单元文件和进程列表都不会带有它们；`stream serve-all --config cams.json --port N` 用一个进程、一个端口提供列表中的所有摄像头（`/<名称>/stream`、`/<名称>/latest.jpg`、`/<名称>/latest.json`、`/<名称>/health`、`/health`），不再为每个摄像头各用一个解释器和一份 OpenCV。*（已用模拟源测试，未用真实摄像头）*
 * 🛠️ **动态配置：** 逐摄像头的分辨率、帧率和像素格式今天已经真实存在并会被校验（`config.py`）；曝光/增益控制需要真实的 V4L2 设备，属于未来工作。
 * 🧩 **为何作为独立项目存在：** 捕获/ISP 调优所需的技能和故障域与模型推理或安全逻辑不同——将其保持在独立进程中，意味着一个捕获方面的漏洞不会波及 [HYDRA-UMC-SAFETY-ZONES](https://github.com/JuanenRac/HYDRA-UMC-SAFETY-ZONES)，并且两者可以独立开发/测试。
 
@@ -120,7 +121,7 @@ HYDRA-UMC-VISION-STREAMER/
 │       └── main.py             # CLI 入口点（裸调用 + `config`/`stream`）
 ├── tests/               # 真实 pytest 套件（config、pipeline、mediamtx、buffer、reconnect、hailo_runtime、mjpeg_server、CLI）
 ├── docs/                # 文档与调优指南
-├── build/               # 构建输出（本地 .venv 也存放于此）
+├── build/               # 构建输出（本地 .venv 位于仓库根目录）
 ├── images/              # 媒体与图表
 ├── systemd/
 │   ├── hydra-umc-vision-streamer@.service  # 按摄像头实例化的 systemd 单元
@@ -240,7 +241,7 @@ run.bat
 **仍待完成、顺序不分先后、无既定时间表、且受限于真实硬件的内容：**
 
 * 真正运行*已生成的流水线* - 完整的 GStreamer/PyGObject tee 到 Hailo-8 推理分支，而不是上面更简单的 OpenCV v0（`stream serve`） - 通过真实运行时。
-* 硬件 ISP 缩放/格式转换（需要真实的 CM5 ISP）。
+* 硬件预处理（缩放/格式转换）：树莓派 5 的 ISP 不服务 USB 摄像头，因此需要先选定后端。
 * 真正通过 `hailo_runtime.py` 运行推理（需要真实的 Hailo-8 模块和真实编译的 `.hef`），并解析该真实模型的 NMS 输出格式 - 在没有设备验证的情况下故意不做猜测。
 * WebRTC 输出，以及逐摄像头曝光/增益控制（需要真实的 V4L2 设备）。
 * `stream serve` 尚未针对真实物理连接的 USB 摄像头进行过验证 - 仅针对在模块边界处模拟的 `cv2.VideoCapture` 进行过验证（见 `tests/test_mjpeg_server.py`）。

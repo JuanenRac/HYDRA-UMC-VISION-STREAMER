@@ -29,7 +29,7 @@ from .access import bind_problem, load_token
 from .buffer import FrameBuffer
 from .config import ConfigError, load_cameras
 from .mediamtx_config import build_mediamtx_paths_yaml, rtsp_url_for
-from .mjpeg_server import DEFAULT_MAX_CLIENTS, CameraUnavailableError, discover_usb_devices, serve_camera
+from .mjpeg_server import DEFAULT_MAX_CLIENTS, CameraUnavailableError, discover_usb_devices, serve_camera, serve_cameras
 from .pipeline import build_capture_pipeline
 from .reconnect import ConnectionState, ConnectionTracker, ReconnectPolicy
 
@@ -163,6 +163,24 @@ def _cmd_stream_serve(args: argparse.Namespace) -> int:
     binding the HTTP port) if the device can't be opened, matching the
     ecosystem's own "no guessed process" convention."""
     device = args.device
+    width, height, fps = args.width, args.height, args.fps
+    if args.config or args.camera:
+        if not (args.config and args.camera):
+            print("error: --config and --camera go together", file=sys.stderr)
+            return 1
+        if args.device or args.device_env:
+            print("error: give the camera by --config/--camera or by --device/--device-env, not both", file=sys.stderr)
+            return 1
+        try:
+            cameras = load_cameras(Path(args.config))
+        except ConfigError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+        found = [c for c in cameras if c.name == args.camera]
+        if not found:
+            print(f"error: no camera named {args.camera!r} in {args.config}", file=sys.stderr)
+            return 1
+        device, width, height, fps = _device_of(found[0]), found[0].width, found[0].height, found[0].fps
     if args.device_env:
         # The device (an RTSP URL carries the camera's password) is read from the
         # environment so that it does not appear in the process list.
@@ -183,7 +201,53 @@ def _cmd_stream_serve(args: argparse.Namespace) -> int:
         print(f"error: {problem}", file=sys.stderr)
         return 2
     try:
-        serve_camera(device, args.addr, args.port, args.width, args.height, args.fps, args.max_clients, token)
+        serve_camera(device, args.addr, args.port, width, height, fps, args.max_clients, token)
+    except CameraUnavailableError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    except KeyboardInterrupt:
+        pass
+    return 0
+
+
+def _device_of(camera) -> str:
+    """What the capture opens for a camera of the list: its device path, or the RTSP address with the credentials, which is built here and
+    never printed or passed on a command line."""
+    return camera.device if camera.source_type == "usb" else camera.rtsp_url()
+
+
+def _cmd_stream_serve_all(args: argparse.Namespace) -> int:
+    """Every camera of the list in this one process and on one port: `GET /<name>/stream`, `/<name>/latest.jpg`, `/<name>/latest.json`,
+    `/<name>/health` and `GET /health` for the whole set. `--camera` (repeatable) picks some of them."""
+    try:
+        cameras = load_cameras(Path(args.config))
+    except ConfigError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    if args.camera:
+        known = {c.name for c in cameras}
+        missing = [n for n in args.camera if n not in known]
+        if missing:
+            print(f"error: no camera named {missing[0]!r} in {args.config}", file=sys.stderr)
+            return 1
+        cameras = [c for c in cameras if c.name in args.camera]
+    if not cameras:
+        print("error: the list has no camera to serve", file=sys.stderr)
+        return 1
+    try:
+        token = load_token(args.token_file)
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    problem = bind_problem(args.addr, token)
+    if problem:
+        print(f"error: {problem}", file=sys.stderr)
+        return 2
+    try:
+        serve_cameras(
+            {c.name: (_device_of(c), c.width, c.height, c.fps) for c in cameras},
+            args.addr, args.port, args.max_clients, token,
+        )
     except CameraUnavailableError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
@@ -263,6 +327,12 @@ def _build_parser() -> argparse.ArgumentParser:
              "in config.py to build one from a persisted camera-list JSON entry instead of typing "
              "credentials on the command line).",
     )
+    real.add_argument(
+        "--config", default=None,
+        help="Camera list JSON file; with --camera it replaces --device (the credentials of an IP camera are read from the file, "
+             "so neither the command line nor the process list carries them).",
+    )
+    real.add_argument("--camera", default=None, help="Name of the camera in --config to serve (its size and rate come from the file)")
     real.add_argument("--addr", default="127.0.0.1", help="Address to bind the MJPEG HTTP server to (default: 127.0.0.1)")
     real.add_argument("--port", type=int, required=True, help="Port to serve the MJPEG stream on")
     real.add_argument("--width", type=int, default=1280)
@@ -277,6 +347,23 @@ def _build_parser() -> argparse.ArgumentParser:
         help="File with the bearer token every request but GET /health must present (or the HYDRA_UMC_VISION_STREAMER_TOKEN environment variable). Needed to bind an address that is not loopback.",
     )
     real.set_defaults(func=_cmd_stream_serve)
+
+    every = stream_sub.add_parser(
+        "serve-all", help="Serve every camera of a list from this one process and port: /<name>/stream, /<name>/latest.jpg, /<name>/latest.json, /<name>/health, /health."
+    )
+    every.add_argument("--config", required=True, help="Camera list JSON file")
+    every.add_argument("--camera", action="append", default=[], help="Serve only this camera (repeat for several); default: all")
+    every.add_argument("--addr", default="127.0.0.1", help="Address to bind (default: 127.0.0.1)")
+    every.add_argument("--port", type=int, required=True, help="Port to serve on")
+    every.add_argument(
+        "--max-clients", type=int, default=DEFAULT_MAX_CLIENTS, dest="max_clients",
+        help=f"Maximum concurrent /stream viewers per camera (default: {DEFAULT_MAX_CLIENTS})",
+    )
+    every.add_argument(
+        "--token-file", default=None, dest="token_file",
+        help="File with the bearer token every request but GET /health must present (or the HYDRA_UMC_VISION_STREAMER_TOKEN environment variable). Needed to bind an address that is not loopback.",
+    )
+    every.set_defaults(func=_cmd_stream_serve_all)
 
     discover = subparsers.add_parser(
         "discover-usb", help="Real USB/V4L2 device enumeration - prints a JSON array of real, working camera indices."

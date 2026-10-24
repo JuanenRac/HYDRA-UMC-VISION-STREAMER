@@ -46,7 +46,8 @@ O **HYDRA-UMC-VISION-STREAMER** destina-se a ser a camada de ingestão de multim
 * 📡 **Suporte RTSP/WebRTC (parcialmente planeado):** o caminho de relé RTSP (`rtspclientsink` → MediaMTX) está desenhado e a sua configuração é gerada a sério acima; executá-lo a sério precisa do ambiente de execução GStreamer que este ambiente não tem. A saída WebRTC continua totalmente planeada.
 * ⚡ **Pipeline sem cópias (planeado):** passagem de memórias intermédias entre V4L2 e HailoRT desenhada para evitar cópias desnecessárias de tramas. *(trabalho futuro - precisa do ambiente de execução V4L2/HailoRT real que este ambiente não tem.)*
 * 🔌 **Fronteira de integração com o HailoRT, preparada antes do módulo:** o `hailo_runtime.py` está escrito contra a API real e confirmada do `hailo_platform` (`VDevice`, `HEF`, `ConfigureParams`) - importada sob demanda para que este repositório instale/teste de forma limpa sem o pacote `hailort` nem um módulo Hailo-8 - mais uma validação prévia real de que a resolução configurada de uma câmara corresponde de facto à forma do tensor de entrada de um modelo carregado, antes de uma única trama ser enviada ao dispositivo. *(implementado, apenas a fronteira de integração - executar inferência a sério e analisar a saída NMS de um modelo real continua a ser trabalho futuro.)*
-* 🌈 **Pré-processamento por hardware (planeado):** redimensionamento em tempo real e conversão de formato de píxeis com o ISP do Pi, aliviando trabalho que o CPU teria de fazer por trama. *(trabalho futuro, pelo mesmo motivo.)*
+* 🌈 **Pré-processamento (planeado, com o backend ainda por escolher):** redimensionamento e conversão de formato de píxeis em tempo real, aliviando o CPU de trabalho por trama. O ISP do Pi 5 (PiSP) serve as câmaras do conector CSI através do libcamera, não as câmaras USB; para câmaras USB a conversão correria no CPU ou num bloco V4L2 memória-para-memória, o que ainda não foi estudado nem escolhido. *(trabalho futuro: precisa do runtime V4L2 real e de uma câmara que este ambiente não tem.)*
+* 🪪 **Identidade da trama, última trama e várias câmaras num processo:** cada parte do fluxo MJPEG leva `X-Frame-Id`, `X-Session-Id` e `X-Capture-Ts` (milissegundos desde a época, tomados quando o sensor entregou a trama), de modo que um consumidor pode calcular a idade de uma trama; `GET /latest.jpg` e `GET /latest.json` respondem a última trama com a sua identidade e idade sem manter um fluxo aberto. `stream serve --config cams.json --camera NOME` toma o dispositivo, o tamanho e a taxa (e as credenciais RTSP de uma câmara IP) da lista, pelo que nem um ficheiro de unidade nem a lista de processos as levam, e `stream serve-all --config cams.json --port N` serve todas as câmaras da lista a partir de um processo e uma porta (`/<nome>/stream`, `/<nome>/latest.jpg`, `/<nome>/latest.json`, `/<nome>/health`, `/health`) em vez de um interpretador e uma cópia do OpenCV por câmara. *(testado com fontes simuladas; não com câmaras reais)*
 * 🛠️ **Configuração dinâmica:** a resolução, a taxa de tramas e o formato de píxeis por câmara são reais e validados hoje (`config.py`); o controlo de exposição/ganho precisa do dispositivo V4L2 real e é trabalho futuro.
 * 🧩 **Porque existe como projeto próprio:** a captura/afinação do ISP é uma competência diferente e um domínio de falhas diferente da inferência de modelos ou da lógica de segurança - mantê-la no seu próprio processo significa que um erro de captura não pode derrubar o [HYDRA-UMC-SAFETY-ZONES](https://github.com/JuanenRac/HYDRA-UMC-SAFETY-ZONES), e que os dois podem ser desenvolvidos/testados de forma independente.
 
@@ -108,7 +109,7 @@ HYDRA-UMC-VISION-STREAMER/
 │       └── main.py             # Ponto de entrada da CLI (invocação simples + `config`/`stream`)
 ├── tests/               # Suite pytest real (config, pipeline, mediamtx, buffer, reconnect, hailo_runtime, mjpeg_server, CLI)
 ├── docs/                # Documentação e guias de afinação
-├── build/               # Saída da compilação (o .venv local também vive aqui)
+├── build/               # Saída da compilação (o .venv local fica na raiz do repositório)
 ├── images/              # Multimédia e diagramas
 ├── systemd/
 │   ├── hydra-umc-vision-streamer@.service  # Unidade systemd instanciada por câmara
@@ -222,7 +223,7 @@ run.bat
 **O que continua em aberto, sem ordem particular, sem calendário comprometido e dependente de hardware real:**
 
 * Executar de facto o *pipeline gerado* - o tee completo GStreamer/PyGObject para um ramo de inferência Hailo-8, e não o `stream serve` mais simples baseado em OpenCV da v0 acima - através de um ambiente de execução real.
-* Redimensionamento / conversão de formato pelo ISP por hardware (precisa do ISP real do CM5).
+* Pré-processamento por hardware (redimensionamento/conversão de formato): o ISP do Pi 5 não serve câmaras USB, pelo que primeiro é preciso escolher o backend.
 * Executar de facto inferência através do `hailo_runtime.py` (precisa de um módulo Hailo-8 real e de um `.hef` compilado real) e analisar o formato de saída NMS desse modelo real - deliberadamente não adivinhado sem o dispositivo para o verificar.
 * Saída WebRTC e controlo de exposição/ganho por câmara (precisa do dispositivo V4L2 real).
 * O `stream serve` ainda não foi verificado contra uma câmara USB real e ligada fisicamente - apenas contra uma câmara IP RTSP real e contra o `cv2.VideoCapture` simulado na fronteira do módulo (veja `tests/test_mjpeg_server.py`).
