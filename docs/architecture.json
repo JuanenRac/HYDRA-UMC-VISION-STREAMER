@@ -1,0 +1,185 @@
+{
+  "repo": "HYDRA-UMC-VISION-STREAMER",
+  "ecosystem": "hydra",
+  "tagline": "Camera configuration in, GStreamer, MediaMTX and MJPEG out, with every camera isolated from the others.",
+  "description": "HYDRA-UMC-VISION-STREAMER validates a camera configuration, generates the GStreamer pipeline and the MediaMTX relay configuration for each camera, serves MJPEG from a bounded buffer with reconnection, and redacts secrets in its logs.",
+  "columns": [
+    "WHO CALLS IT",
+    "THIS REPOSITORY",
+    "WHAT IT FEEDS"
+  ],
+  "nodes": [
+    {
+      "id": "cli",
+      "column": 0,
+      "level": "tested",
+      "title": "CLI",
+      "lines": [
+        "config validate, gst,",
+        "mediamtx; stream"
+      ],
+      "code": [
+        "src/hydra_umc_vision_streamer/main.py"
+      ]
+    },
+    {
+      "id": "cam",
+      "column": 0,
+      "level": "untested",
+      "title": "USB and IP cameras",
+      "lines": [
+        "up to 8 sources; none",
+        "was connected here"
+      ]
+    },
+    {
+      "id": "hef",
+      "column": 2,
+      "level": "untested",
+      "title": "Hailo-8 runtime",
+      "lines": [
+        "hand-off boundary; needs",
+        "the real runtime"
+      ],
+      "code": [
+        "src/hydra_umc_vision_streamer/hailo_runtime.py"
+      ]
+    },
+    {
+      "id": "vw",
+      "column": 2,
+      "level": "external",
+      "title": "Viewers and MediaMTX",
+      "lines": [
+        "browsers, recorders,",
+        "RTSP clients"
+      ]
+    },
+    {
+      "id": "cfg",
+      "column": 1,
+      "level": "tested",
+      "title": "config.py",
+      "lines": [
+        "per-camera settings",
+        "and their validation"
+      ],
+      "code": [
+        "src/hydra_umc_vision_streamer/config.py"
+      ]
+    },
+    {
+      "id": "pip",
+      "column": 1,
+      "level": "tested",
+      "title": "pipeline.py",
+      "lines": [
+        "GStreamer pipeline",
+        "text for each camera"
+      ],
+      "code": [
+        "src/hydra_umc_vision_streamer/pipeline.py"
+      ]
+    },
+    {
+      "id": "mtx",
+      "column": 1,
+      "level": "tested",
+      "title": "mediamtx_config.py",
+      "lines": [
+        "MediaMTX paths, one",
+        "publisher per camera"
+      ],
+      "code": [
+        "src/hydra_umc_vision_streamer/mediamtx_config.py"
+      ]
+    },
+    {
+      "id": "buf",
+      "column": 1,
+      "level": "tested",
+      "title": "buffer.py + reconnect.py",
+      "lines": [
+        "bounded frames, and the",
+        "retry policy"
+      ],
+      "code": [
+        "src/hydra_umc_vision_streamer/buffer.py",
+        "src/hydra_umc_vision_streamer/reconnect.py"
+      ]
+    },
+    {
+      "id": "red",
+      "column": 1,
+      "level": "tested",
+      "title": "log_redaction.py",
+      "lines": [
+        "secrets of camera URLs",
+        "removed from logs"
+      ],
+      "code": [
+        "src/hydra_umc_vision_streamer/log_redaction.py"
+      ]
+    },
+    {
+      "id": "mj",
+      "column": 1,
+      "level": "tested",
+      "title": "mjpeg_server.py",
+      "lines": [
+        "MJPEG over HTTP; a token",
+        "away from loopback"
+      ],
+      "code": [
+        "src/hydra_umc_vision_streamer/mjpeg_server.py",
+        "src/hydra_umc_vision_streamer/access.py"
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "from": "cli",
+      "to": "cfg",
+      "level": "tested"
+    },
+    {
+      "from": "cam",
+      "to": "pip",
+      "level": "untested",
+      "label": "frames"
+    },
+    {
+      "from": "cfg",
+      "to": "pip",
+      "level": "tested"
+    },
+    {
+      "from": "cfg",
+      "to": "mtx",
+      "level": "tested"
+    },
+    {
+      "from": "pip",
+      "to": "buf",
+      "level": "tested"
+    },
+    {
+      "from": "buf",
+      "to": "mj",
+      "level": "tested"
+    },
+    {
+      "from": "mj",
+      "to": "vw",
+      "level": "external",
+      "label": "MJPEG"
+    },
+    {
+      "from": "buf",
+      "to": "hef",
+      "level": "untested",
+      "label": "frames"
+    }
+  ],
+  "footer": "Pipelines and the MJPEG server were exercised with synthetic sources; no camera and no Hailo-8 were attached."
+}

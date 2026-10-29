@@ -4,6 +4,8 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+- **README in the universal layout:** the README and its seven translations follow the layout that the four families share (22 sections in a fixed order), with an architecture picture and a repository-structure picture drawn from `docs/architecture.json` and `docs/structure.json`; the CI validator checks both pictures and the file tree.
+
 - **The layout of the README is checked in the CI:** the validator runs `tools/universal_readme_check.py` and lists, as a warning, what differs from the universal layout of the README.
 
 ## [0.2.1] - Optional Bearer token for the stream and one shared secret redaction
@@ -389,7 +391,7 @@ build.
 ## [0.0.1]
 
 Real build verification. `build.sh`/`build.bat` run end-to-end for real:
-odometer bump, `.venv` creation, editable install, `python -m compileall`
+version bump, `.venv` creation, editable install, `python -m compileall`
 clean across `src/`. `run.sh`/`run.bat` executed the entry point for real,
 printing name + version + role. No business-logic change - the bump is the
 recorded event.
@@ -399,6 +401,6 @@ recorded event.
 Initial skeleton: `pyproject.toml` (package metadata, no runtime
 dependencies yet), `src/hydra_umc_vision_streamer/` (`__init__.py` +
 `main.py` entry point reading its version from installed package
-metadata), `bump_version.py` (odometer-style version bump),
+metadata), `bump_version.py` (version bump),
 `build.sh`/`build.bat` (venv + editable install + compile-check) and
 `run.sh`/`run.bat`.

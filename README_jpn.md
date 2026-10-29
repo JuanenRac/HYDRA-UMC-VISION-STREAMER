@@ -1,24 +1,35 @@
+<!-- =============================================================================
+HYDRA-UMC-VISION-STREAMER - Multi-camera capture pipeline for the Vision AI Node
+Copyright (C) JuanenRac (Electro Hobby 3D) <electrohobby3d@gmail.com>
+GPL-3.0-or-later - see LICENSE
+============================================================================= -->
+
 <p align="center">
   <img src="images/HYDRA_UMC_BANNER.svg" alt="HYDRA-UMC-VISION-STREAMER banner" width="100%">
 </p>
 
-# 📹 HYDRA-UMC-VISION-STREAMER
+# 🎥 HYDRA-UMC-VISION-STREAMER
 
 <p align="center"><a href="README.md">🇺🇸 English</a> | <a href="README_spa.md">🇪🇸 Español</a> | <a href="README_fra.md">🇫🇷 Français</a> | <a href="README_ita.md">🇮🇹 Italiano</a> | <a href="README_deu.md">🇩🇪 Deutsch</a> | <a href="README_zho.md">🇨🇳 简体中文</a> | 🇯🇵 <b>日本語</b> | <a href="README_por.md">🇵🇹 Português</a></p>
 
 ### 🚀 マルチカメラエッジ AI 向けに最適化された GStreamer パイプライン
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Licencia-GPL%203.0--or--later-blue.svg" alt="GPL 3.0 or later">
-  <img src="https://img.shields.io/badge/Framework-GStreamer-62B417.svg" alt="GStreamer">
-  <img src="https://img.shields.io/badge/Platform-Raspberry%20Pi%20CM5-BC1142.svg" alt="CM5">
-  <img src="https://img.shields.io/badge/Interface-8x%20USB%203.0-blue.svg" alt="8x USB 3.0">
-  <img src="https://img.shields.io/badge/Stage-Functional%20v0-green.svg" alt="Functional v0">
+  <img src="https://img.shields.io/badge/License-GPL%203.0--or--later-blue.svg" alt="GPL 3.0 or later">
+  <img src="https://img.shields.io/badge/Framework-GStreamer-62B417.svg" alt="Framework">
+  <img src="https://img.shields.io/badge/Platform-Raspberry%20Pi%20CM5-BC1142.svg" alt="Platform">
+  <img src="https://img.shields.io/badge/Interface-8x%20USB%203.0-blue.svg" alt="Interface">
+  <img src="https://img.shields.io/badge/Stage-Functional%20v0-green.svg" alt="Stage">
+  <img src="https://img.shields.io/badge/Tests-142%20passing-2ea44f.svg" alt="Tests">
+  <img src="https://img.shields.io/badge/Version-0.2.1-0f6cbd.svg" alt="Version">
+  <img src="https://img.shields.io/badge/Maturity-established-2EA44F.svg" alt="Maturity">
 </p>
 
 ---
 
 > **安全性とセキュリティの現状:** このエコシステムは認証された安全システムではありません。ハードウェアの E-STOP 経路、ファームウェアが強制する制限やインターロック、検証済みの動作コマンドはまだありません。ファームウェアイメージは CRC32 と共有鍵の HMAC-SHA256 で検査しており、非対称署名ではありません。TLS と相互 TLS は任意で、既定では無効です。独自基板はまだ実装も試験もされていません。ここに書かれた内容を人の安全のために頼る前に、[セキュリティベースライン](https://github.com/JuanenRac/HYDRA-UMC-DOCS/blob/main/docs/SECURITY_BASELINE.md)と[脅威モデル](https://github.com/JuanenRac/HYDRA-UMC-DOCS/blob/main/docs/THREAT_MODEL.md)をお読みください。
+
+---
 
 ## 📋 ひと目で
 
@@ -26,10 +37,12 @@
 |---|---|
 | バージョン | `0.2.1` |
 | 成熟度 | 確立 |
-| テスト | 109 |
+| テスト | 142 (`python -m pytest -q tests`) |
 | 技術 | Python / GStreamer / MediaMTX |
 | 対象 | HYDRA-UMC セルの Raspberry Pi CM5 |
 | 実機での確認 | まだです：このバージョンについて実機での動作記録はありません |
+
+**移動：** [概要](#-概要) · [アーキテクチャ](#-アーキテクチャ) · [クイックスタート](#-クイックスタート) · [テスト](#-テスト) · [リポジトリの構成](#-リポジトリの構成) · [関連プロジェクト](#-関連プロジェクト)
 
 ## 🚦 プロジェクトの状況
 
@@ -40,11 +53,11 @@
 | 領域 | 状態 | ここでの意味 |
 |---|---|---|
 | ソフトウェア | 🟢 | 目的に対して完成していて安定しています。既知の制限は上の正直さの確認に書かれています |
-| テスト | 🟢 | 自動テスト 109 件。変更のたびに実行されます |
+| テスト | 🟢 | 自動テスト 142 件。変更のたびに実行されます |
 | 実機 | 🔴 | まだです：このバージョンについて実機での動作記録はありません |
 | ドキュメント | 🟢 | 8 言語の README。変更のたびにマニフェストと照合されます |
 
-## 1. 🛠️ 技術概要
+## 🎯 概要
 
 **HYDRA-UMC-VISION-STREAMER** は、Vision AI Node ファミリーの高性能な
 メディア取り込み層となることを目指しています。その役割は、最大 8 台の
@@ -72,15 +85,22 @@ USB 3.0 カメラストリームを同時に低レベルでキャプチャ、前
 * 🛠️ **動的設定：** カメラごとの解像度、フレームレート、ピクセルフォーマットは今日すでに実装され検証されています（`config.py`）。露出/ゲイン制御は実際の V4L2 デバイスが必要で、将来の作業です。
 * 🧩 **独立したプロジェクトとして存在する理由：** キャプチャ/ISP チューニングは、モデル推論や安全ロジックとは異なるスキルと異なる障害領域を持ちます——独自のプロセスとして保つことで、キャプチャ側のバグが [HYDRA-UMC-SAFETY-ZONES](https://github.com/JuanenRac/HYDRA-UMC-SAFETY-ZONES) を巻き込むことがなくなり、両者を独立して開発・テストできます。
 
-**正直な現状確認 —— 今日実際に動くもの：** 設定の検証、GStreamer パイプライン記述の生成、MediaMTX リレー設定の生成、そして実際のバッファ/再接続ポリシー、そして実際の HailoRT 統合境界(`config.py`、`pipeline.py`、`mediamtx_config.py`、`buffer.py`、`reconnect.py`、`hailo_runtime.py`)は実装され、テストされています（105 個のテスト）。これらのいずれも V4L2 デバイスを開いたり、GStreamer をインポートしたり、物理カメラと通信したりはしません——生成されたパイプラインを実際に実行するには、この環境にない実際のランタイムとハードウェアが必要です。実際に出荷済みの内容は [`CHANGELOG.md`](CHANGELOG.md)`/stream` は `--max-clients`（既定は 5、それを超えると本物の 503）で同時視聴者数を制限して CM5 の限られた Wi-Fi 上り帯域を守り、読み取りを止めた視聴者を 30 秒後（ソケットのタイムアウト）に切断するため、固まったクライアントが枠を永久に占有することはありません。
+**正直な現状確認 —— 今日実際に動くもの：** 設定の検証、GStreamer パイプライン記述の生成、MediaMTX リレー設定の生成、そして実際のバッファ/再接続ポリシー、そして実際の HailoRT 統合境界(`config.py`、`pipeline.py`、`mediamtx_config.py`、`buffer.py`、`reconnect.py`、`hailo_runtime.py`)は実装され、テストされています（142 個のテスト）。これらのいずれも V4L2 デバイスを開いたり、GStreamer をインポートしたり、物理カメラと通信したりはしません——生成されたパイプラインを実際に実行するには、この環境にない実際のランタイムとハードウェアが必要です。実際に出荷済みの内容は [`CHANGELOG.md`](CHANGELOG.md)`/stream` は `--max-clients`（既定は 5、それを超えると本物の 503）で同時視聴者数を制限して CM5 の限られた Wi-Fi 上り帯域を守り、読み取りを止めた視聴者を 30 秒後（ソケットのタイムアウト）に切断するため、固まったクライアントが枠を永久に占有することはありません。
 を、まだ残っている作業は下記の「現在の状況と次のステップ」セクションを
 参照してください。
 
----
+## 🧩 HYDRA-UMC での役割
 
-## 2. 🔄 目標パイプラインアーキテクチャ
+**HYDRA-UMC-VISION-STREAMER** は Vision AI Node のキャプチャ側です。最大 8 台のカメラの設定を検証し、それぞれの GStreamer パイプラインと MediaMTX リレーを記述し、上限付きのフレームバッファと再接続ポリシーを備えた MJPEG ストリームを配信します。Hailo-8 への受け渡しは、実際のランタイムを必要とする定義済みの境界です。
 
-下図は、本プロジェクトが構築を目指している目標データフローです——その*形態*（どの要素がどれに供給するか、`Tee` の分岐）は `pipeline.py` によって固定され、今日すでに実際の `gst-launch-1.0` 構文として生成されますが、この図の内容はまだ何も実行されていません：それには実際の V4L2/GStreamer/Hailo-8 ランタイムと物理 USB カメラが必要です。
+## 🏛️ アーキテクチャ
+
+<p align="center">
+  <img src="images/architecture.svg" alt="HYDRA-UMC-VISION-STREAMER architecture" width="100%">
+</p>
+
+<details>
+<summary>図のテキスト版（Mermaid）</summary>
 
 ```mermaid
 graph LR
@@ -91,9 +111,13 @@ graph LR
     TEE --> DISP[Local Display / Stream]
 ```
 
----
+</details>
 
-## 3. 🧠 高度な技術情報
+### 目標パイプラインアーキテクチャ
+
+下図は、本プロジェクトが構築を目指している目標データフローです——その*形態*（どの要素がどれに供給するか、`Tee` の分岐）は `pipeline.py` によって固定され、今日すでに実際の `gst-launch-1.0` 構文として生成されますが、この図の内容はまだ何も実行されていません：それには実際の V4L2/GStreamer/Hailo-8 ランタイムと物理 USB カメラが必要です。
+
+### 高度な技術情報
 
 ### なぜ `hardware/`、`firmware/`、`os/`、`models/` がここに存在しないのか
 
@@ -115,60 +139,31 @@ STM32H745/STM32G474 基板とは異なり、CM5 + Hailo-8 は市販のハード�
 ### 既に行われた設計上の決定
 
 * **バージョンはハードコードではなく、インストール済みパッケージのメタデータから読み取られます** —— `main.py` は 2 つ目の `__version__` 文字列の代わりに `importlib.metadata.version("hydra-umc-vision-streamer")` を呼び出すため、`bump_version.py` が編集すべき箇所は常に 1 か所であり、両者が食い違うことは決してありません。
-* **オドメーター式のインクリメントは自動的に `PATCH`/`MINOR` にのみ触れます** —— `bump_version.py` は `PATCH` が 9 を超えると `MINOR` に、`MINOR` が 9 を超えると `MAJOR` に繰り上がりますが、`MAJOR` 自体を自動で増加させることは決してありません。これは意図的な人間による決定であり、`HYDRA-UMC-EDITOR-URDF/bump_version.py` および `HYDRA-UMC-SUITE/bump_version.py` と同じ慣例です。
+これは意図的な人間による決定であり、`HYDRA-UMC-EDITOR-URDF/bump_version.py` および `HYDRA-UMC-SUITE/bump_version.py` と同じ慣例です。
 * **MediaMTX の YAML は手書きであり、PyYAML の上には構築されていません** —— `mediamtx_config.py` の出力形態（フラットな `paths:` マップ、カメラごとに 1 つの `source: publisher` エントリ）は十分にシンプルで固定されており、実際の依存関係はまだ正当化されません。カメラごとの設定にネストされたフィールドやリスト値のフィールドが増えた場合は、その時点で見直します。
 * **パイプラインと MediaMTX 設定は、カメラごとに 1 つの RTSP パスで一致していなければなりません** —— `rtsp_url_for()` はそれを（カメラ名から）導出する唯一の場所であるため、`config gst` と `config mediamtx` があるカメラのストリームがどこにあるかについて食い違うことは決してありません。
 * **`FrameBuffer` は満杯になると最も古い項目を破棄し、最新のものは破棄しません。** ライブ映像には、増え続ける古いフレームの滞留分は何の役にも立ちません——常に有用なのは最も新しいフレームです。代わりにプロデューサーをブロックするキューは実際のキャプチャスレッド自体を危険にさらし、ただ単純に増え続けるキューは、このゲートが防ぐために存在する無制限メモリの失敗をまさに引き起こしてしまいます。
 * **`reconnect.py` は決して自分でスリープしたり、実際のソケットに触れたりしません。** `ConnectionTracker` は状態を追跡し、呼び出し側がどれだけ待つべきかを返すだけです——この分離こそが、`max_attempts` に達した後に正直に諦めることを含む、バックオフスケジュール全体をテストの中で正確に再現可能にしているものです。実際の時計も実際のカメラリンクも関与しません。
 
----
+## 🚀 クイックスタート
 
-## 📂 リポジトリ構成
+Python 3.10 以上が必要です。
 
-```text
-HYDRA-UMC-VISION-STREAMER/
-├── src/                 # ソースコード（hydra_umc_vision_streamer パッケージ）
-│   └── hydra_umc_vision_streamer/
-│       ├── __init__.py          # パッケージの説明とバージョン
-│       ├── config.py           # カメラごとの設定の解析/検証
-│       ├── pipeline.py         # GStreamer パイプライン記述の生成
-│       ├── mediamtx_config.py  # MediaMTX paths.yml の生成
-│       ├── buffer.py           # 実際の有界バッファ（drop-oldest バックプレッシャー）
-│       ├── reconnect.py        # 実際の決定論的な再接続/バックオフポリシー
-│       ├── hailo_runtime.py    # 実際のHailoRT(hailo_platform)統合境界、遅延インポート
-│       ├── mjpeg_server.py     # 実際のMJPEGサーバー - USBウェブカメラまたはRTSP IPカメラの映像を実際にHTTP経由で配信
-│       ├── access.py           # HTTP API 用の任意の Bearer トークン (ループバックでは不要、それ以外では必須)
-│       ├── log_redaction.py    # テキストや JSON 風の値に含まれる秘密情報の共通の伏せ字処理 (SDK の正本モジュールのコピー)
-│       └── main.py             # CLI エントリポイント（素の呼び出し + `config`/`stream`）
-├── tests/               # 実際の pytest スイート（config、pipeline、mediamtx、buffer、reconnect、hailo_runtime、mjpeg_server、CLI）
-├── docs/                # ドキュメントとチューニングガイド
-├── build/               # ビルド出力（ローカルの .venv はリポジトリのルートにあります）
-├── images/              # メディアと図表
-├── systemd/
-│   ├── hydra-umc-vision-streamer@.service  # カメラごとにインスタンス化されるsystemdユニット
-│   └── cameras.env.example                 # インスタンスごとの環境ファイルの例
-├── tools/
-│   ├── build_test.py    # バージョンを増やさないビルドチェック
-│   ├── ci_validate.py   # CI が使用するマニフェスト/CHANGELOG/ドキュメント検証
-│   ├── _doc_policy.py   # ファミリー共通のドキュメント規則 (HYDRA-UMC-SDK のコピーで、同期を維持)
-│   ├── _readme_parity.py # 8つの README が同じ構造であることの検査 (HYDRA-UMC-SDK のコピーで、同期を維持)
-│   ├── hydra_project_tool.py # すべてのリポジトリで共通のコマンド: validate、test、ci、version、status、bump
-│   └── extra_build_steps.py # 共通のビルドテストに加えた、このリポジトリ固有のビルド手順 (独自のユニットテスト)
-├── pyproject.toml       # パッケージメタデータ、依存関係、オドメーターバージョン
-├── bump_version.py      # オドメーター式バージョンインクリメント（明示的な `bump` コマンドのみが実行）
-├── bump_manifest_version.py # hydra-umc.project.json のバージョンをネイティブ版と同期(--sync)
-├── build.sh / build.bat # venv + editable インストール + コンパイルチェック + テスト
-├── run.sh / run.bat     # ローカル venv からエントリポイントを実行
-└── CHANGELOG.md         # バージョンごとの履歴（オドメーター方式、日付なし）
+```bash
+./build.sh  # Linux, macOS (build.bat on Windows)
+./run.sh config validate --config cameras.json
+./run.sh config gst --config cameras.json --camera cam0
+./run.sh config mediamtx --config cameras.json --out mediamtx.yml
+./run.sh stream --config cameras.json
 ```
 
-`hardware/`、`firmware/`、`os/`、`models/` フォルダは存在しません——理由は
-上記「高度な技術情報」を参照してください。`os/` と `models/` は統合親
-プロジェクトである [HYDRA-UMC-VISION-NODE](https://github.com/JuanenRac/HYDRA-UMC-VISION-NODE) にのみ存在します。
+## 🧪 テスト
 
----
+`python -m pytest -q tests` で自動テスト 142 件を実行します。 ハードウェアも、このマシンの外にあるものも必要ありません。
 
-## 🏗️ ビルドと実行
+CI は `HYDRA_UMC_CI=1 python tools/ci_validate.py` を実行し、マニフェスト、文書、8 つの README、図を検査します。
+
+## 🏗️ ビルドとリリース
 
 ### 前提条件
 
@@ -187,7 +182,7 @@ HYDRA-UMC-VISION-STREAMER/
 2. **仮想環境** — `.venv/` が存在しない場合は作成し、存在する場合は再利用します。
 3. **Editable インストール** — `pip install -e ".[dev]"` により `src/` 下の変更が即座に反映され、`pytest` がインストールされ、`hydra-umc-vision-streamer` コンソールエントリポイントが登録されます。
 4. **コンパイルチェック** — `python -m compileall -q src` が `src/` 下の各ファイルをバイトコンパイルし、あるファイルが `main.py` から一度もインポートされない場合でも、エコシステム全体にわたる構文エラーを検出します。
-5. **実際のテストスイート** — `python -m pytest tests/ -q`（config、pipeline、MediaMTX 生成、バッファ/再接続ポリシー、HailoRT 統合境界、CLI をカバーする 105 個のテスト）。
+5. **実際のテストスイート** — `python -m pytest tests/ -q`（config、pipeline、MediaMTX 生成、バッファ/再接続ポリシー、HailoRT 統合境界、CLI をカバーする 142 個のテスト）。
 
 `set -euo pipefail` は最初に失敗したステップでスクリプトを停止させます。
 5 つのステップすべてが成功した場合にのみビルドは成功を報告します。
@@ -258,12 +253,50 @@ run.bat
 * **`run.sh`/`run.bat` が「`.venv` が見つかりません」と表示する** —— 先に少なくとも 1 回 `build.sh`/`build.bat` を実行してください。`run` 自体が環境を作成することはありません。
 * **editable インストールが古いままになる** —— `.venv/` を削除して再構築してください。`pip install -e .` は通常、ソースの変更をリアルタイムで認識するため、これが必要になることはまれです。
 
----
+## 📂 リポジトリの構成
 
-## 🚀 現在の状況と次のステップ
+<p align="center">
+  <img src="images/repository-structure.svg" alt="Repository structure of HYDRA-UMC-VISION-STREAMER" width="100%">
+</p>
 
-**今日実現していること：** 設定の検証、GStreamer パイプライン記述の生成、そして MediaMTX リレー設定の生成（`config.py`、`pipeline.py`、`mediamtx_config.py`）、実際の、証明可能な有界バッファと実際の決定論的な再接続ポリシー（`buffer.py`、`reconnect.py`、`stream simulate`）、実際の Hailo-8 モジュールが接続され次第すぐに使える実際の HailoRT 統合境界（`hailo_runtime.py`）、そして OpenCV 経由で実際の USB/V4L2 デバイス**または実際の RTSP IP カメラ**（`config.py` の `source_type: "ip"`、`mjpeg_server.py` の `cv2.CAP_FFMPEG`）を開き、実際の MJPEG を HTTP 経由で配信する実際の v0 キャプチャ＋配信パス（`mjpeg_server.py`、`stream serve`） - `HYDRA-UMC-OS` 自身の `provisioning/install_vision_streamer.sh` により CM5 にインストール可能（管理者が割り当てたカメラスロットごとに 1 つの systemd インスタンス、`systemd/hydra-umc-vision-streamer@.service`）で、すでに `HYDRA-UMC-SERVER` の `GET /api/camera/:id/stream` プロキシと `HYDRA-UMC-STUDIO` のカメラビューによってライブで利用されている。IP カメラ経路は実機に対してエンドツーエンドで検証済み：ローカルネットワーク上の実際の IP カメラ 4 台すべてがこの完全な実経路を通じて開き、本物のフレームを配信しました - 合計 105 個のテスト、さらに検証済みのエントリポイントを持つ実際のインストール
-可能な Python パッケージ、そして、バージョンを上げる明示的な `bump` コマンド（オドメーター式。ビルドがバージョンを変えることはありません）。実際に取得されたビルド/実行出力については
+<details>
+<summary>ツリーのテキスト版</summary>
+
+```text
+HYDRA-UMC-VISION-STREAMER/
+├── tools/                      ソースコード
+│   ├── build_test.py           バージョンを増やさないビルドチェック
+│   ├── ci_validate.py          CI が使用するマニフェスト/CHANGELOG/ドキュメント検証
+│   ├── _doc_policy.py          ファミリー共通のドキュメント規則 (HYDRA-UMC-SDK のコピーで、同期を維持)
+│   ├── _readme_parity.py       8つの README が同じ構造であることの検査 (HYDRA-UMC-SDK のコピーで、同期を維持)
+│   ├── hydra_project_tool.py   すべてのリポジトリで共通のコマンド: validate、test、ci、version、status、bump
+│   └── extra_build_steps.py    共通のビルドテストに加えた、このリポジトリ固有のビルド手順 (独自のユニットテスト)
+├── src/                        ソースコード（hydra_umc_vision_streamer パッケージ）
+├── tests/                      実際の pytest スイート（config、pipeline、mediamtx、buffer、reconnect、hailo_runtime、mjpeg_server、CLI）
+├── docs/                       ドキュメントとチューニングガイド
+├── images/                     メディアと図表
+├── systemd/                    サービスユニット
+├── .github/                    CI ワークフローと Issue テンプレート
+├── pyproject.toml              パッケージのメタデータ
+├── bump_version.py             明示的なバージョン更新
+├── bump_manifest_version.py    hydra-umc.project.json のバージョンをネイティブ版と同期(--sync)
+├── build.sh / build.bat        venv + editable インストール + コンパイルチェック + テスト
+├── run.sh / run.bat            ローカル venv からエントリポイントを実行
+├── CHANGELOG.md                各バージョンの変更点
+├── Dockerfile                  コンテナイメージ
+├── build-test.sh               変更を伴わないビルド確認
+├── hydra-umc.project.json      マニフェスト：バージョン、成熟度、ファミリー
+└── test.sh                     テストを実行
+```
+
+</details>
+
+## 🗺️ ロードマップと既知の制限
+
+**現時点の既知の制限**
+
+**今日実現していること：** 設定の検証、GStreamer パイプライン記述の生成、そして MediaMTX リレー設定の生成（`config.py`、`pipeline.py`、`mediamtx_config.py`）、実際の、証明可能な有界バッファと実際の決定論的な再接続ポリシー（`buffer.py`、`reconnect.py`、`stream simulate`）、実際の Hailo-8 モジュールが接続され次第すぐに使える実際の HailoRT 統合境界（`hailo_runtime.py`）、そして OpenCV 経由で実際の USB/V4L2 デバイス**または実際の RTSP IP カメラ**（`config.py` の `source_type: "ip"`、`mjpeg_server.py` の `cv2.CAP_FFMPEG`）を開き、実際の MJPEG を HTTP 経由で配信する実際の v0 キャプチャ＋配信パス（`mjpeg_server.py`、`stream serve`） - `HYDRA-UMC-OS` 自身の `provisioning/install_vision_streamer.sh` により CM5 にインストール可能（管理者が割り当てたカメラスロットごとに 1 つの systemd インスタンス、`systemd/hydra-umc-vision-streamer@.service`）で、すでに `HYDRA-UMC-SERVER` の `GET /api/camera/:id/stream` プロキシと `HYDRA-UMC-STUDIO` のカメラビューによってライブで利用されている。IP カメラ経路は実機に対してエンドツーエンドで検証済み：ローカルネットワーク上の実際の IP カメラ 4 台すべてがこの完全な実経路を通じて開き、本物のフレームを配信しました - 合計 142 個のテスト、さらに検証済みのエントリポイントを持つ実際のインストール
+可能な Python パッケージ、そして、バージョンを上げる明示的な `bump` コマンド。ビルドがバージョンを変えることはありません）。実際に取得されたビルド/実行出力については
 [`CHANGELOG.md`](CHANGELOG.md) を参照してください。
 
 **まだ残っている作業（順不同、確定した期限なし、実際のハードウェアに阻まれている）：**
@@ -274,7 +307,9 @@ run.bat
 * WebRTC 出力、およびカメラごとの露出/ゲイン制御（実際の V4L2 デバイスが必要）。
 * `stream serve` はまだ実際に物理接続された USB カメラに対して検証されていない - モジュール境界でモック化された `cv2.VideoCapture` に対してのみ検証済み（`tests/test_mjpeg_server.py` を参照）。
 
----
+## 🌍 言語
+
+この README とリポジトリの文書は、英語・スペイン語・ドイツ語・フランス語・イタリア語・日本語・中国語・ポルトガル語（ポルトガル）の 8 言語で提供されています。8 つのファイルは同時に書かれ、同じ節と同じリンクを持つことを CI が確認します。 このリポジトリには独自の画面もメッセージカタログもないため、翻訳すべきインターフェース文字列はありません。
 
 ## 🔗 関連プロジェクト
 
@@ -365,21 +400,27 @@ run.bat
 - **[HYDRA-UMC-OPS-AGENT](https://github.com/JuanenRac/HYDRA-UMC-OPS-AGENT)** — 保守インシデントコーディネーター: 低権限のエッジ役割がサニタイズされたインベントリ/ヘルスのスナップショットを収集し、コントロールプレーン役割がそれを読み取り専用でレンダリングして AI プロバイダーに診断の提案を依頼します - パッチを適用することも、何かをデプロイすることも決してありません。
 - **[HYDRA-UMC-DEV-SERVER](https://github.com/JuanenRac/HYDRA-UMC-DEV-SERVER)** — 再現可能な開発ホスト（Raspberry Pi 5 / CM5）。エコシステムのソースコードを保管し、永続キューのもとで境界の明確なビルド/テストタスクを実行する。運用中の CM5 とは明確に異なる、開発専用の役割。
 
----
+## 📚 ドキュメント
 
-## 📚 ドキュメント & コミュニティ
+さらに読むには：
 
-- **[docs/CLI_REFERENCE.md](docs/CLI_REFERENCE.md)** —— 各サブコマンド（`config validate`/`gst`/`mediamtx`、`stream simulate`/`serve`、実際の USB および RTSP IP カメラの例を含む）と、実際にキャプチャされた出力。
-- **[CONTRIBUTING.md](CONTRIBUTING.md)** —— プルリクエストのための技術スタックとコーディング指針。
-- **[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)** —— このコミュニティで期待される行動規範。
-- **[SECURITY.md](SECURITY.md)** —— 脆弱性の報告方法と、このプロジェクトの実際のセキュリティ重点領域。
-- **[SUPPORT.md](SUPPORT.md)** —— 質問の投稿先とバグの報告先。
-- **[LICENSE.md](LICENSE.md)** —— このプロジェクト自身のライセンス。
+* **[docs/CLI_REFERENCE.md](docs/CLI_REFERENCE.md)** —— 各サブコマンド（`config validate`/`gst`/`mediamtx`、`stream simulate`/`serve`、実際の USB および RTSP IP カメラの例を含む）と、実際にキャプチャされた出力。
+* [エコシステムのセキュリティ基準](https://github.com/JuanenRac/HYDRA-UMC-DOCS/blob/main/docs/SECURITY_BASELINE.md)
+* [エコシステムの脅威モデル](https://github.com/JuanenRac/HYDRA-UMC-DOCS/blob/main/docs/THREAT_MODEL.md)
+* [このリポジトリの変更履歴](CHANGELOG.md)
+* [このリポジトリのライセンス](LICENSE.md)
+
+## 🤝 コントリビュートとコミュニティ
+
+* プルリクエストの前に `HYDRA_UMC_CI=1 py -3 tools/ci_validate.py`（または `HYDRA_UMC_CI=1 python3 tools/ci_validate.py`）を実行してください。`CI_VALIDATION=PASS` と表示される必要があります。この確認に `build.sh` や `build.bat` は使わないでください。ビルドは検査ではありません。
+* 8 つの README は HYDRA-UMC-DOCS の 1 つのソースから書かれます。手で編集しないでください。ソースを変更し、`tools/make_readmes.py` で書き直します。
+* 実行していないことを README に書かないでください。事実であれば「シミュレーションのみ」「実機では未確認」と書きます。
+* [CONTRIBUTING.md](CONTRIBUTING.md)、[行動規範](CODE_OF_CONDUCT.md)、[SECURITY.md](SECURITY.md)、[SUPPORT.md](SUPPORT.md) を参照してください。
 
 ## 👤 作者
-**JuanenRac** (Electro Hobby 3D)
-📧 electrohobby3d@gmail.com
-📺 [youtube.com/@electrohobby3d](https://youtube.com/@electrohobby3d)
+
+**JuanenRac (Electro Hobby 3D)** · electrohobby3d@gmail.com
 
 ## 📜 ライセンス
-GPL-3.0-or-later —— 詳細は LICENSE を参照してください。
+
+GPL-3.0-or-later - [LICENSE](LICENSE).
