@@ -2,6 +2,10 @@
 
 All notable changes to this project are documented here.
 
+## [Unreleased]
+
+- **The layout of the README is checked in the CI:** the validator runs `tools/universal_readme_check.py` and lists, as a warning, what differs from the universal layout of the README.
+
 ## [0.2.1] - Optional Bearer token for the stream and one shared secret redaction
 
 - **The frame carries its identity, and one process can serve all the cameras.** Every part of the MJPEG stream has `X-Frame-Id`, `X-Session-Id` and `X-Capture-Ts` (the headers are ASCII, so the JPEG markers that `MjpegPlayer.kt` scans for cannot appear in them, and a browser ignores headers it does not know); `GET /latest.jpg` and `GET /latest.json` answer the newest frame and its identity and age (`data_age_ms`) without a stream. `stream serve --config FILE --camera NAME` takes the device, size and rate and the RTSP credentials from the list, and `stream serve-all --config FILE --port N [--camera NAME]...` serves the cameras of the list from one process and port (`/<name>/stream`, `/<name>/latest.jpg`, `/<name>/latest.json`, `/<name>/health`, `/health` for the whole set), with the client limit per camera, and stops if any camera is lost for good so the supervisor restarts it. The README no longer says the Pi 5 ISP converts USB camera frames (it serves CSI cameras through libcamera); the backend for USB is still to be chosen. Tested with fake sources, not with real cameras.
