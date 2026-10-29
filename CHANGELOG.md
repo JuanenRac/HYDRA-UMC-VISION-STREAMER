@@ -4,6 +4,7 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+- **The introduction no longer promises the Pi 5 ISP for USB cameras:** the README (and its seven translations) and the diagram say that the frame pre-processing has no backend yet, because the ISP of the Raspberry Pi 5 serves cameras on the CSI connector, not USB cameras; `docs/CLI_REFERENCE.md` says the same.
 - **README in the universal layout:** the README and its seven translations follow the layout that the four families share (22 sections in a fixed order), with an architecture picture and a repository-structure picture drawn from `docs/architecture.json` and `docs/structure.json`; the CI validator checks both pictures and the file tree.
 
 - **The layout of the README is checked in the CI:** the validator runs `tools/universal_readme_check.py` and lists, as a warning, what differs from the universal layout of the README.

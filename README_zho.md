@@ -60,9 +60,10 @@ GPL-3.0-or-later - see LICENSE
 ## 🎯 概述
 
 **HYDRA-UMC-VISION-STREAMER** 旨在成为 Vision AI Node 系列的高性能媒体
-接入层。其任务是对最多 8 路并发的 USB 3.0 摄像头流进行底层捕获、预处理
-和分发，利用博通 BCM2712（CM5）的硬件加速 ISP，在帧到达 Hailo-8 NPU
-之前完成色彩空间转换、缩放和归一化处理。
+接入层。其任务是在帧到达 Hailo-8 NPU 之前，对最多 8 路并发的 USB 3.0 摄像头流
+进行底层捕获、预处理和分发。预处理（色彩空间转换、缩放、归一化）目前还没有后端：
+树莓派 5 的 ISP 服务 CSI 接口的摄像头，不服务 USB 摄像头，因此 USB 摄像头的工作将在 CPU 或
+尚未选定的 V4L2 内存到内存模块上运行。
 
 这是集成父项目 **[HYDRA-UMC-VISION-NODE](https://github.com/JuanenRac/HYDRA-UMC-VISION-NODE)** 4 个子项目之一：本项目仅负责捕获/预处理，不运行自己的 Hailo-8 推理、gRPC API 或安全逻辑——这些被刻意拆分到其另外 3 个同族项目中。
 
@@ -102,7 +103,7 @@ GPL-3.0-or-later - see LICENSE
 ```mermaid
 graph LR
     USB[8x USB Cameras] --> V4L2[V4L2 Capture]
-    V4L2 --> ISP[Hardware ISP<br/>Resize/Format]
+    V4L2 --> ISP[预处理<br/>(后端待定)]
     ISP --> TEE[Tee Element]
     TEE --> HAI[Hailo NPU Inference]
     TEE --> DISP[Local Display / Stream]

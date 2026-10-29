@@ -59,7 +59,7 @@ Cada linha é uma parte deste repositório e a luz diz até onde chega hoje. É 
 
 ## 🎯 Visão geral
 
-O **HYDRA-UMC-VISION-STREAMER** destina-se a ser a camada de ingestão de multimédia de alto desempenho da família do Nó de IA de Visão. O seu trabalho é a captura de baixo nível, o pré-processamento e a distribuição de até 8 fluxos simultâneos de câmaras USB 3.0, usando o ISP acelerado por hardware do Broadcom BCM2712 (CM5) para fazer a conversão de espaço de cor, o redimensionamento e a normalização antes de as tramas chegarem à NPU Hailo-8.
+O **HYDRA-UMC-VISION-STREAMER** destina-se a ser a camada de ingestão de multimédia de alto desempenho da família do Nó de IA de Visão. O seu trabalho é a captura de baixo nível, o pré-processamento e a distribuição de até 8 fluxos simultâneos de câmaras USB 3.0 antes de as tramas chegarem à NPU Hailo-8. O pré-processamento (conversão de espaço de cor, redimensionamento, normalização) ainda não tem backend: o ISP do Raspberry Pi 5 serve as câmaras do conector CSI, não as câmaras USB; com câmaras USB o trabalho correria no CPU ou num bloco V4L2 memória a memória que ainda não foi escolhido.
 
 É um dos 4 filhos do **[HYDRA-UMC-VISION-NODE](https://github.com/JuanenRac/HYDRA-UMC-VISION-NODE)**, o pai de integração da família: este projeto é dono apenas da captura/pré-processamento, e não executa a sua própria inferência Hailo-8, API gRPC nem lógica de segurança - isso está deliberadamente repartido pelos seus 3 irmãos.
 
@@ -97,7 +97,7 @@ O **HYDRA-UMC-VISION-STREAMER** é o lado de captura do Vision AI Node: valida a
 ```mermaid
 graph LR
     USB[8x USB Cameras] --> V4L2[V4L2 Capture]
-    V4L2 --> ISP[Hardware ISP<br/>Resize/Format]
+    V4L2 --> ISP[Pré-processamento<br/>(backend por escolher)]
     ISP --> TEE[Tee Element]
     TEE --> HAI[Hailo NPU Inference]
     TEE --> DISP[Local Display / Stream]

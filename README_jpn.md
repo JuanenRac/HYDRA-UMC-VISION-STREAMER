@@ -61,10 +61,11 @@ GPL-3.0-or-later - see LICENSE
 
 **HYDRA-UMC-VISION-STREAMER** は、Vision AI Node ファミリーの高性能な
 メディア取り込み層となることを目指しています。その役割は、最大 8 台の
-USB 3.0 カメラストリームを同時に低レベルでキャプチャ、前処理、配信する
-ことであり、Broadcom BCM2712（CM5）のハードウェアアクセラレーション ISP
-を利用して、フレームが Hailo-8 NPU に到達する前に色空間変換、リサイズ、
-正規化を行います。
+USB 3.0 カメラストリームを、フレームが Hailo-8 NPU に到達する前に
+低レベルでキャプチャ、前処理、配信することです。前処理（色空間変換、リサイズ、
+正規化）のバックエンドはまだありません。Raspberry Pi 5 の ISP は CSI コネクタの
+カメラを扱い、USB カメラは扱いません。USB カメラでは CPU で、または未選定の
+ V4L2 メモリ間ブロックで処理することになります。
 
 これは、ファミリーの統合親プロジェクトである
 **[HYDRA-UMC-VISION-NODE](https://github.com/JuanenRac/HYDRA-UMC-VISION-NODE)** の 4 つの子プロジェクトの 1 つです：本プロジェクトはキャプチャ/前処理のみを担当し、独自の Hailo-8 推論、gRPC API、安全ロジックは実行しません——これらは意図的に他の 3 つの兄弟プロジェクトに分割されています。
@@ -105,7 +106,7 @@ USB 3.0 カメラストリームを同時に低レベルでキャプチャ、前
 ```mermaid
 graph LR
     USB[8x USB Cameras] --> V4L2[V4L2 Capture]
-    V4L2 --> ISP[Hardware ISP<br/>Resize/Format]
+    V4L2 --> ISP[前処理<br/>(バックエンド未定)]
     ISP --> TEE[Tee Element]
     TEE --> HAI[Hailo NPU Inference]
     TEE --> DISP[Local Display / Stream]

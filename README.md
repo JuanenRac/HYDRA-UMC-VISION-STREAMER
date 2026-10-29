@@ -59,7 +59,7 @@ Each line is one part of this repository and the light says how far it is today.
 
 ## 🎯 Overview
 
-**HYDRA-UMC-VISION-STREAMER** is intended to be the high-performance media ingestion layer of the Vision AI Node family. Its job is the low-level capture, pre-processing, and distribution of up to 8 concurrent USB 3.0 camera streams, using the hardware-accelerated ISP of the Broadcom BCM2712 (CM5) to do color-space conversion, resizing, and normalization before frames reach the Hailo-8 NPU.
+**HYDRA-UMC-VISION-STREAMER** is intended to be the high-performance media ingestion layer of the Vision AI Node family. Its job is the low-level capture, pre-processing, and distribution of up to 8 concurrent USB 3.0 camera streams before the frames reach the Hailo-8 NPU. The pre-processing (colour-space conversion, resizing, normalisation) has no backend yet: the ISP of the Raspberry Pi 5 serves cameras on the CSI connector, not USB cameras, so for USB cameras the work would run on the CPU or on a V4L2 memory-to-memory block that has not been chosen.
 
 **Several viewers, health and credentials:** every viewer of a camera gets every frame (the shared buffer is no longer consumed by the first reader), `GET /health` answers `200` while frames arrive and `503` otherwise (`connecting`, `stalled`, `given_up`), and if every reconnect attempt is used up the process now exits with an error instead of serving an empty stream, so its supervisor restarts it. Passwords in RTSP URLs are masked in logs and messages; pass the URL with `--device-env VAR` (an environment variable) instead of `--device` so it does not show in the process list. Hosts, devices and RTSP paths are validated before they are written into a generated pipeline, and an IP camera pipeline uses `rtspsrc` with leaky, bounded queues. Everything the streamer logs now also passes through the shared secret redaction (tokens, `password=` values and bearer headers as well as URL credentials), the same module and the same test vectors as the other projects.
 
@@ -97,7 +97,7 @@ This is one of the 4 children of **[HYDRA-UMC-VISION-NODE](https://github.com/Ju
 ```mermaid
 graph LR
     USB[8x USB Cameras] --> V4L2[V4L2 Capture]
-    V4L2 --> ISP[Hardware ISP<br/>Resize/Format]
+    V4L2 --> ISP[Pre-processing<br/>(backend to be chosen)]
     ISP --> TEE[Tee Element]
     TEE --> HAI[Hailo NPU Inference]
     TEE --> DISP[Local Display / Stream]

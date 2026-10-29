@@ -378,8 +378,9 @@ the module boundary in `tests/test_mjpeg_server.py`.
 IP camera and serves real MJPEG over HTTP. Still not implemented, and
 described in the project README's own roadmap: running the full
 GStreamer/PyGObject pipeline that `config gst`/`config mediamtx` only
-generate the description for, the hardware ISP resize/format conversion,
-and feeding a real Hailo-8 NPU through `hailo_runtime.py` — these need
+generate the description for, the pre-processing of the frames (resize and
+format conversion; the ISP of the Pi 5 serves CSI cameras, not USB cameras, so
+the backend has not been chosen), and feeding a real Hailo-8 NPU through `hailo_runtime.py` — these need
 the GStreamer/PyGObject runtime and a real Hailo-8 module this
 environment does not have. `stream serve` itself is also not yet
 verified against a physically-connected USB camera (see above).

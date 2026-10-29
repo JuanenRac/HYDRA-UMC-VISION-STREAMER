@@ -59,7 +59,7 @@ Chaque ligne est une partie de ce dépôt et le feu dit où elle en est aujourd'
 
 ## 🎯 Présentation
 
-**HYDRA-UMC-VISION-STREAMER** est destiné à être la couche d'ingestion média haute performance de la famille Vision AI Node. Son rôle est la capture bas niveau, le pré-traitement et la distribution de jusqu'à 8 flux caméra USB 3.0 concurrents, en utilisant l'ISP accéléré matériellement du Broadcom BCM2712 (CM5) pour la conversion d'espace colorimétrique, le redimensionnement et la normalisation avant que les images n'atteignent le NPU Hailo-8.
+**HYDRA-UMC-VISION-STREAMER** est destiné à être la couche d'ingestion média haute performance de la famille Vision AI Node. Son rôle est la capture bas niveau, le pré-traitement et la distribution de jusqu'à 8 flux caméra USB 3.0 concurrents avant que les images n'atteignent le NPU Hailo-8. Le pré-traitement (conversion d'espace colorimétrique, redimensionnement, normalisation) n'a pas encore de backend : l'ISP du Raspberry Pi 5 sert les caméras du connecteur CSI, pas les caméras USB ; pour des caméras USB, le travail s'exécuterait sur le CPU ou sur un bloc V4L2 mémoire à mémoire qui n'a pas été choisi.
 
 **Plusieurs spectateurs, santé et identifiants :** chaque spectateur d'une caméra reçoit toutes les images (le tampon partagé n'est plus consommé par le premier lecteur), `GET /health` répond `200` tant que des images arrivent et `503` sinon (`connecting`, `stalled`, `given_up`), et si toutes les tentatives de reconnexion sont épuisées, le processus se termine désormais avec une erreur au lieu de servir un flux vide, ce qui permet à son superviseur de le relancer. Les mots de passe des URL RTSP sont masqués dans les journaux et messages ; passez l'URL avec `--device-env VAR` (une variable d'environnement) plutôt que `--device` pour qu'elle n'apparaisse pas dans la liste des processus. Les hôtes, périphériques et chemins RTSP sont validés avant d'être écrits dans un pipeline généré, et le pipeline d'une caméra IP utilise `rtspsrc` avec des files bornées qui abandonnent. Tout ce que le streamer journalise passe aussi par la rédaction de secrets partagée (jetons, valeurs de `password=` et en-têtes bearer en plus des identifiants d'URL), le même module et les mêmes vecteurs de test que les autres projets.
 
@@ -97,7 +97,7 @@ C'est l'un des 4 enfants de **[HYDRA-UMC-VISION-NODE](https://github.com/JuanenR
 ```mermaid
 graph LR
     USB[8x Caméras USB] --> V4L2[Capture V4L2]
-    V4L2 --> ISP[ISP Matériel<br/>Redimensionnement/Format]
+    V4L2 --> ISP[Pré-traitement<br/>(backend à choisir)]
     ISP --> TEE[Élément Tee]
     TEE --> HAI[Inférence NPU Hailo]
     TEE --> DISP[Affichage Local / Stream]
