@@ -20,7 +20,7 @@ GPL-3.0-or-later - see LICENSE
   <img src="https://img.shields.io/badge/Platform-Raspberry%20Pi%20CM5-BC1142.svg" alt="Platform">
   <img src="https://img.shields.io/badge/Interface-8x%20USB%203.0-blue.svg" alt="Interface">
   <img src="https://img.shields.io/badge/Stage-Functional%20v0-green.svg" alt="Stage">
-  <img src="https://img.shields.io/badge/Tests-142%20passing-2ea44f.svg" alt="Tests">
+  <img src="https://img.shields.io/badge/Tests-146%20passing-2ea44f.svg" alt="Tests">
   <img src="https://img.shields.io/badge/Version-0.2.1-0f6cbd.svg" alt="Version">
   <img src="https://img.shields.io/badge/Maturity-established-2EA44F.svg" alt="Maturity">
 </p>
@@ -37,7 +37,7 @@ GPL-3.0-or-later - see LICENSE
 |---|---|
 | Versão | `0.2.1` |
 | Maturidade | Estabelecido |
-| Testes | 142 (`python -m pytest -q tests`) |
+| Testes | 146 (`python -m pytest -q tests`) |
 | Tecnologia | Python / GStreamer / MediaMTX |
 | Destino | O Raspberry Pi CM5 de uma célula HYDRA-UMC |
 | Em hardware real | Ainda não: não há registo de execução em hardware real para esta versão |
@@ -53,7 +53,7 @@ Cada linha é uma parte deste repositório e a luz diz até onde chega hoje. É 
 | Área | Estado | O que significa aqui |
 |---|---|---|
 | Software | 🟢 | Completo para o seu propósito e estável; a verificação de honestidade acima lista os limites conhecidos |
-| Testes | 🟢 | 142 testes automáticos, executados a cada alteração |
+| Testes | 🟢 | 146 testes automáticos, executados a cada alteração |
 | Hardware real | 🔴 | Ainda não: não há registo de execução em hardware real para esta versão |
 | Documentação | 🟢 | README em oito idiomas, verificado contra o manifesto a cada alteração |
 
@@ -76,8 +76,9 @@ O **HYDRA-UMC-VISION-STREAMER** destina-se a ser a camada de ingestão de multim
 * 🪪 **Identidade da trama, última trama e várias câmaras num processo:** cada parte do fluxo MJPEG leva `X-Frame-Id`, `X-Session-Id` e `X-Capture-Ts` (milissegundos desde a época, tomados quando o sensor entregou a trama), de modo que um consumidor pode calcular a idade de uma trama; `GET /latest.jpg` e `GET /latest.json` respondem a última trama com a sua identidade e idade sem manter um fluxo aberto. `stream serve --config cams.json --camera NOME` toma o dispositivo, o tamanho e a taxa (e as credenciais RTSP de uma câmara IP) da lista, pelo que nem um ficheiro de unidade nem a lista de processos as levam, e `stream serve-all --config cams.json --port N` serve todas as câmaras da lista a partir de um processo e uma porta (`/<nome>/stream`, `/<nome>/latest.jpg`, `/<nome>/latest.json`, `/<nome>/health`, `/health`) em vez de um interpretador e uma cópia do OpenCV por câmara. *(testado com fontes simuladas; não com câmaras reais)*
 * 🛠️ **Configuração dinâmica:** a resolução, a taxa de tramas e o formato de píxeis por câmara são reais e validados hoje (`config.py`); o controlo de exposição/ganho precisa do dispositivo V4L2 real e é trabalho futuro.
 * 🧩 **Porque existe como projeto próprio:** a captura/afinação do ISP é uma competência diferente e um domínio de falhas diferente da inferência de modelos ou da lógica de segurança - mantê-la no seu próprio processo significa que um erro de captura não pode derrubar o [HYDRA-UMC-SAFETY-ZONES](https://github.com/JuanenRac/HYDRA-UMC-SAFETY-ZONES), e que os dois podem ser desenvolvidos/testados de forma independente.
+* 🔐 **Modelo de deteção a partir de bytes verificados:** o modelo de deteção Hailo pode ser construído a partir dos bytes que o `HYDRA-UMC-DETECTION-HEF` já leu e verificou, com o hash calculado de novo aqui, e o caminho nunca é reaberto; bytes vazios ou diferentes são recusados. *(Ainda não correu nenhum modelo num chip Hailo.)*
 
-**Verificação de honestidade - o que realmente funciona hoje:** a validação de configuração, a geração da descrição do pipeline GStreamer, a geração da configuração do relé MediaMTX, a política real de memória intermédia/religação e a fronteira de integração com o HailoRT (`config.py`, `pipeline.py`, `mediamtx_config.py`, `buffer.py`, `reconnect.py`, `hailo_runtime.py`) são reais e testadas (142 testes). O `stream serve` (`mjpeg_server.py`) é o único caminho que abre uma câmara real - um dispositivo USB/V4L2 ou uma câmara IP RTSP real - e foi verificado contra câmaras IP reais da rede local; ainda não foi verificado contra uma câmara USB ligada fisicamente. O `/stream` limita os espectadores simultâneos com `--max-clients` (por omissão 5, um 503 real a partir daí) para proteger a ligação Wi-Fi limitada de um CM5 contra um número ilimitado de fluxos simultâneos. O pipeline completo GStreamer/PyGObject de que o `config gst`/`config mediamtx` apenas geram a descrição, e a inferência Hailo-8 real, continuam a precisar desse ambiente de execução real e de um módulo Hailo-8 real, que este ambiente não tem. Veja o [`CHANGELOG.md`](CHANGELOG.md) para saber exatamente o que foi entregue até agora e "Estado atual e próximos passos" abaixo para o que continua em aberto. O `/stream` corta também um espectador que deixa de ler passados 30 segundos (um tempo limite de socket), para que um cliente bloqueado não possa reter para sempre um dos lugares do `--max-clients`.
+**Verificação de honestidade - o que realmente funciona hoje:** a validação de configuração, a geração da descrição do pipeline GStreamer, a geração da configuração do relé MediaMTX, a política real de memória intermédia/religação e a fronteira de integração com o HailoRT (`config.py`, `pipeline.py`, `mediamtx_config.py`, `buffer.py`, `reconnect.py`, `hailo_runtime.py`) são reais e testadas (146 testes). O `stream serve` (`mjpeg_server.py`) é o único caminho que abre uma câmara real - um dispositivo USB/V4L2 ou uma câmara IP RTSP real - e foi verificado contra câmaras IP reais da rede local; ainda não foi verificado contra uma câmara USB ligada fisicamente. O `/stream` limita os espectadores simultâneos com `--max-clients` (por omissão 5, um 503 real a partir daí) para proteger a ligação Wi-Fi limitada de um CM5 contra um número ilimitado de fluxos simultâneos. O pipeline completo GStreamer/PyGObject de que o `config gst`/`config mediamtx` apenas geram a descrição, e a inferência Hailo-8 real, continuam a precisar desse ambiente de execução real e de um módulo Hailo-8 real, que este ambiente não tem. Veja o [`CHANGELOG.md`](CHANGELOG.md) para saber exatamente o que foi entregue até agora e "Estado atual e próximos passos" abaixo para o que continua em aberto. O `/stream` corta também um espectador que deixa de ler passados 30 segundos (um tempo limite de socket), para que um cliente bloqueado não possa reter para sempre um dos lugares do `--max-clients`.
 
 **Vários espectadores, saúde e credenciais:** cada espectador de uma câmara recebe todos os frames (o buffer partilhado já não é consumido pelo primeiro leitor), `GET /health` responde `200` enquanto chegam frames e `503` caso contrário (`connecting`, `stalled`, `given_up`), e se todas as tentativas de religação se esgotarem o processo termina agora com erro em vez de servir um fluxo vazio, para que o seu supervisor o reinicie. As palavras-passe dos URL RTSP são mascaradas nos registos e mensagens; passe o URL com `--device-env VAR` (uma variável de ambiente) em vez de `--device` para que não apareça na lista de processos. Os anfitriões, dispositivos e caminhos RTSP são validados antes de serem escritos num pipeline gerado, e o pipeline de uma câmara IP usa `rtspsrc` com filas limitadas que descartam. Tudo o que o streamer regista passa também pela redação de segredos partilhada (tokens, valores de `password=` e cabeçalhos bearer, além das credenciais dos URL), o mesmo módulo e os mesmos vetores de teste dos outros projetos.
 
@@ -142,7 +143,7 @@ Requer Python 3.10 ou superior.
 
 ## 🧪 Testes
 
-142 testes automáticos correm com `python -m pytest -q tests`. Não precisam de hardware nem de nada fora desta máquina.
+146 testes automáticos correm com `python -m pytest -q tests`. Não precisam de hardware nem de nada fora desta máquina.
 
 A CI executa `HYDRA_UMC_CI=1 python tools/ci_validate.py`, que verifica o manifesto, os documentos, os oito README e as imagens.
 
@@ -165,7 +166,7 @@ A CI executa `HYDRA_UMC_CI=1 python tools/ci_validate.py`, que verifica o manife
 2. **Ambiente virtual** - cria o `.venv/` se não existir; reutiliza-o caso contrário.
 3. **Instalação editável** - `pip install -e ".[dev]"` para que as edições em `src/` tenham efeito de imediato, instala o `pytest` e regista o ponto de entrada de consola `hydra-umc-vision-streamer`.
 4. **Verificação de compilação** - `python -m compileall -q src` compila para bytecode todos os ficheiros de `src/`, apanhando erros de sintaxe em todo o ecossistema mesmo em ficheiros que o `main.py` nunca importa.
-5. **Suite de testes real** - `python -m pytest tests/ -q` (142 testes que cobrem a configuração (incluindo a análise de câmaras IP reais e a codificação percentual do `rtsp_url()`), o pipeline, a geração do MediaMTX, a política de memória intermédia/religação, a fronteira de integração com o HailoRT, o caminho de captura e serviço MJPEG e a CLI).
+5. **Suite de testes real** - `python -m pytest tests/ -q` (146 testes que cobrem a configuração (incluindo a análise de câmaras IP reais e a codificação percentual do `rtsp_url()`), o pipeline, a geração do MediaMTX, a política de memória intermédia/religação, a fronteira de integração com o HailoRT, o caminho de captura e serviço MJPEG e a CLI).
 
 O `set -euo pipefail` pára o script no primeiro passo que falhar; a compilação só reporta êxito se os 5 passarem.
 
@@ -273,7 +274,7 @@ HYDRA-UMC-VISION-STREAMER/
 
 **Limites conhecidos hoje**
 
-**O que funciona hoje:** a validação da configuração por câmara, a geração da descrição do pipeline GStreamer e a geração da configuração do relé MediaMTX (`config.py`, `pipeline.py`, `mediamtx_config.py`), uma memória intermédia de tramas real e demonstravelmente limitada e uma política real e determinística de religação (`buffer.py`, `reconnect.py`, `stream simulate`), uma fronteira real de integração com o HailoRT (`hailo_runtime.py`) pronta para um módulo Hailo-8 real no momento em que se ligue, e um caminho v0 real de captura e serviço (`mjpeg_server.py`, `stream serve`) que abre um dispositivo USB/V4L2 real **ou uma câmara IP RTSP real** (`source_type: "ip"` no `config.py`, `cv2.CAP_FFMPEG` no `mjpeg_server.py`) através do OpenCV e serve MJPEG real por HTTP - instalável num CM5 através do `provisioning/install_vision_streamer.sh` do próprio `HYDRA-UMC-OS` (uma instância systemd por ranhura de câmara atribuída pelo administrador, `systemd/hydra-umc-vision-streamer@.service`) e já consumido em direto pelo proxy `GET /api/camera/:id/stream` do `HYDRA-UMC-SERVER` e pelas vistas de câmara do `HYDRA-UMC-STUDIO`. O caminho de câmaras IP está verificado de ponta a ponta contra hardware real: as 4 câmaras IP reais da rede local abriram e transmitiram tramas reais por todo o caminho real - 142 testes no total, mais um pacote Python real e instalável com um ponto de entrada verificado e um comando `bump` explícito, ao estilo conta-quilómetros, que sobe a versão (compilar nunca a altera). Veja o [`CHANGELOG.md`](CHANGELOG.md) para a saída capturada de compilação/execução.
+**O que funciona hoje:** a validação da configuração por câmara, a geração da descrição do pipeline GStreamer e a geração da configuração do relé MediaMTX (`config.py`, `pipeline.py`, `mediamtx_config.py`), uma memória intermédia de tramas real e demonstravelmente limitada e uma política real e determinística de religação (`buffer.py`, `reconnect.py`, `stream simulate`), uma fronteira real de integração com o HailoRT (`hailo_runtime.py`) pronta para um módulo Hailo-8 real no momento em que se ligue, e um caminho v0 real de captura e serviço (`mjpeg_server.py`, `stream serve`) que abre um dispositivo USB/V4L2 real **ou uma câmara IP RTSP real** (`source_type: "ip"` no `config.py`, `cv2.CAP_FFMPEG` no `mjpeg_server.py`) através do OpenCV e serve MJPEG real por HTTP - instalável num CM5 através do `provisioning/install_vision_streamer.sh` do próprio `HYDRA-UMC-OS` (uma instância systemd por ranhura de câmara atribuída pelo administrador, `systemd/hydra-umc-vision-streamer@.service`) e já consumido em direto pelo proxy `GET /api/camera/:id/stream` do `HYDRA-UMC-SERVER` e pelas vistas de câmara do `HYDRA-UMC-STUDIO`. O caminho de câmaras IP está verificado de ponta a ponta contra hardware real: as 4 câmaras IP reais da rede local abriram e transmitiram tramas reais por todo o caminho real - 146 testes no total, mais um pacote Python real e instalável com um ponto de entrada verificado e um comando `bump` explícito, ao estilo conta-quilómetros, que sobe a versão (compilar nunca a altera). Veja o [`CHANGELOG.md`](CHANGELOG.md) para a saída capturada de compilação/execução.
 
 **O que continua em aberto, sem ordem particular, sem calendário comprometido e dependente de hardware real:**
 

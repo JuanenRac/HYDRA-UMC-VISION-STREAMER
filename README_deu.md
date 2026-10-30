@@ -20,7 +20,7 @@ GPL-3.0-or-later - see LICENSE
   <img src="https://img.shields.io/badge/Platform-Raspberry%20Pi%20CM5-BC1142.svg" alt="Platform">
   <img src="https://img.shields.io/badge/Interface-8x%20USB%203.0-blue.svg" alt="Interface">
   <img src="https://img.shields.io/badge/Stage-Functional%20v0-green.svg" alt="Stage">
-  <img src="https://img.shields.io/badge/Tests-142%20passing-2ea44f.svg" alt="Tests">
+  <img src="https://img.shields.io/badge/Tests-146%20passing-2ea44f.svg" alt="Tests">
   <img src="https://img.shields.io/badge/Version-0.2.1-0f6cbd.svg" alt="Version">
   <img src="https://img.shields.io/badge/Maturity-established-2EA44F.svg" alt="Maturity">
 </p>
@@ -37,7 +37,7 @@ GPL-3.0-or-later - see LICENSE
 |---|---|
 | Version | `0.2.1` |
 | Reifegrad | Etabliert |
-| Tests | 142 (`python -m pytest -q tests`) |
+| Tests | 146 (`python -m pytest -q tests`) |
 | Technik | Python / GStreamer / MediaMTX |
 | Ziel | Der Raspberry Pi CM5 einer HYDRA-UMC-Zelle |
 | Auf echter Hardware | Noch nicht: für diese Version ist kein Lauf auf echter Hardware vermerkt |
@@ -53,7 +53,7 @@ Jede Zeile ist ein Teil dieses Repositorys, und die Ampel sagt, wie weit er heut
 | Bereich | Stand | Was das hier bedeutet |
 |---|---|---|
 | Software | 🟢 | Für seinen Zweck vollständig und stabil; die Ehrlichkeitsprüfung oben nennt die bekannten Grenzen |
-| Tests | 🟢 | 142 automatische Tests, bei jeder Änderung ausgeführt |
+| Tests | 🟢 | 146 automatische Tests, bei jeder Änderung ausgeführt |
 | Echte Hardware | 🔴 | Noch nicht: für diese Version ist kein Lauf auf echter Hardware vermerkt |
 | Dokumentation | 🟢 | README in acht Sprachen, bei jeder Änderung gegen das Manifest geprüft |
 
@@ -78,8 +78,9 @@ Dies ist eines der 4 Kind-Projekte von **[HYDRA-UMC-VISION-NODE](https://github.
 * 🪪 **Bildidentität, letztes Bild und mehrere Kameras in einem Prozess:** Jeder Teil des MJPEG-Stroms trägt `X-Frame-Id`, `X-Session-Id` und `X-Capture-Ts` (Millisekunden seit der Epoche, genommen, als der Sensor das Bild lieferte), so dass ein Verbraucher das Alter eines Bildes bestimmen kann; `GET /latest.jpg` und `GET /latest.json` antworten das neueste Bild samt Identität und Alter, ohne einen Strom offen zu halten. `stream serve --config cams.json --camera NAME` nimmt Gerät, Größe und Rate (und die RTSP-Zugangsdaten einer IP-Kamera) aus der Liste, so dass weder eine Unit-Datei noch die Prozessliste sie trägt, und `stream serve-all --config cams.json --port N` bedient alle Kameras der Liste aus einem Prozess und einem Port (`/<name>/stream`, `/<name>/latest.jpg`, `/<name>/latest.json`, `/<name>/health`, `/health`) statt aus einem Interpreter und einer OpenCV-Kopie pro Kamera. *(mit simulierten Quellen getestet; nicht mit echten Kameras)*
 * 🛠️ **Dynamische Konfiguration:** Auflösung, Framerate und Pixelformat pro Kamera sind heute real und werden validiert (`config.py`); die Belichtungs-/Verstärkungssteuerung benötigt das echte V4L2-Gerät und ist zukünftige Arbeit.
 * 🧩 **Warum als eigenes Projekt:** Erfassungs-/ISP-Abstimmung ist eine andere Fähigkeit und eine andere Fehlerdomäne als Modellinferenz oder Sicherheitslogik - sie im eigenen Prozess zu halten bedeutet, dass ein Erfassungsfehler [HYDRA-UMC-SAFETY-ZONES](https://github.com/JuanenRac/HYDRA-UMC-SAFETY-ZONES) nicht lahmlegen kann, und beide können unabhängig entwickelt/getestet werden.
+* 🔐 **Erkennungsmodell aus geprüften Bytes:** Das Hailo-Erkennungsmodell kann aus den Bytes gebaut werden, die `HYDRA-UMC-DETECTION-HEF` schon gelesen und geprüft hat, hier erneut gehasht, und der Pfad wird nie wieder geöffnet; leere oder andere Bytes werden abgelehnt. *(Auf einem Hailo-Chip lief noch kein Modell.)*
 
-**Ehrlichkeitscheck - was heute wirklich läuft:** die Konfigurationsvalidierung, die Generierung der GStreamer-Pipeline-Beschreibung, die Generierung der MediaMTX-Relay-Konfiguration, und die echte Puffer-/Wiederverbindungspolitik, und eine echte HailoRT-Integrationsgrenze (`config.py`, `pipeline.py`, `mediamtx_config.py`, `buffer.py`, `reconnect.py`, `hailo_runtime.py`) sind real und getestet (142 Tests). Nichts davon öffnet ein V4L2-Gerät, importiert GStreamer oder spricht mit einer physischen Kamera - die generierte Pipeline tatsächlich auszuführen benötigt dieses echte Laufzeitsystem und diese echte Hardware, die diese Umgebung nicht hat. Siehe [`CHANGELOG.md`](CHANGELOG.md) für genau das, was bisher geliefert wurde, und "Aktueller Status & Nächste Schritte" unten für das, was noch offen ist. `/stream` begrenzt gleichzeitige Zuschauer mit `--max-clients` (Standard 5, darüber ein echtes 503), um die begrenzte WLAN-Anbindung eines CM5 zu schützen, und trennt einen Zuschauer, der nach 30 Sekunden aufhört zu lesen (ein Socket-Timeout), sodass ein festhängender Client nie dauerhaft einen der Plätze belegt.
+**Ehrlichkeitscheck - was heute wirklich läuft:** die Konfigurationsvalidierung, die Generierung der GStreamer-Pipeline-Beschreibung, die Generierung der MediaMTX-Relay-Konfiguration, und die echte Puffer-/Wiederverbindungspolitik, und eine echte HailoRT-Integrationsgrenze (`config.py`, `pipeline.py`, `mediamtx_config.py`, `buffer.py`, `reconnect.py`, `hailo_runtime.py`) sind real und getestet (146 Tests). Nichts davon öffnet ein V4L2-Gerät, importiert GStreamer oder spricht mit einer physischen Kamera - die generierte Pipeline tatsächlich auszuführen benötigt dieses echte Laufzeitsystem und diese echte Hardware, die diese Umgebung nicht hat. Siehe [`CHANGELOG.md`](CHANGELOG.md) für genau das, was bisher geliefert wurde, und "Aktueller Status & Nächste Schritte" unten für das, was noch offen ist. `/stream` begrenzt gleichzeitige Zuschauer mit `--max-clients` (Standard 5, darüber ein echtes 503), um die begrenzte WLAN-Anbindung eines CM5 zu schützen, und trennt einen Zuschauer, der nach 30 Sekunden aufhört zu lesen (ein Socket-Timeout), sodass ein festhängender Client nie dauerhaft einen der Plätze belegt.
 
 ## 🧩 Rolle in HYDRA-UMC
 
@@ -142,7 +143,7 @@ Benötigt Python 3.10 oder neuer.
 
 ## 🧪 Tests
 
-142 automatische Tests laufen mit `python -m pytest -q tests`. Sie brauchen weder Hardware noch etwas außerhalb dieses Rechners.
+146 automatische Tests laufen mit `python -m pytest -q tests`. Sie brauchen weder Hardware noch etwas außerhalb dieses Rechners.
 
 Die CI führt `HYDRA_UMC_CI=1 python tools/ci_validate.py` aus; das prüft das Manifest, die Dokumente, die acht READMEs und die Bilder.
 
@@ -165,7 +166,7 @@ Die CI führt `HYDRA_UMC_CI=1 python tools/ci_validate.py` aus; das prüft das M
 2. **Virtuelle Umgebung** - erstellt `.venv/`, falls nicht vorhanden; verwendet es sonst weiter.
 3. **Editierbare Installation** - `pip install -e ".[dev]"`, sodass Änderungen unter `src/` sofort wirken, installiert `pytest`, und registriert den Konsolen-Einstiegspunkt `hydra-umc-vision-streamer`.
 4. **Compile-Check** - `python -m compileall -q src` kompiliert jede Datei unter `src/` zu Bytecode und findet so Syntaxfehler im gesamten Paket.
-5. **Echte Test-Suite** - `python -m pytest tests/ -q` (142 Tests, die config, pipeline, MediaMTX-Generierung, die Puffer-/Wiederverbindungspolitik, die HailoRT-Integrationsgrenze und die CLI abdecken).
+5. **Echte Test-Suite** - `python -m pytest tests/ -q` (146 Tests, die config, pipeline, MediaMTX-Generierung, die Puffer-/Wiederverbindungspolitik, die HailoRT-Integrationsgrenze und die CLI abdecken).
 
 `set -euo pipefail` stoppt das Skript beim ersten fehlschlagenden Schritt; der Build meldet Erfolg nur, wenn alle 5 Schritte erfolgreich waren.
 
@@ -273,7 +274,7 @@ HYDRA-UMC-VISION-STREAMER/
 
 **Bekannte Grenzen heute**
 
-**Was heute funktioniert:** die Konfigurationsvalidierung, die Generierung der GStreamer-Pipeline-Beschreibung, und die Generierung der MediaMTX-Relay-Konfiguration (`config.py`, `pipeline.py`, `mediamtx_config.py`), ein echter, nachweislich begrenzter Puffer und eine echte deterministische Wiederverbindungspolitik (`buffer.py`, `reconnect.py`, `stream simulate`), eine echte HailoRT-Integrationsgrenze (`hailo_runtime.py`), bereit für ein echtes Hailo-8-Modul, sobald es angeschlossen wird, und ein echter v0-Capture+Serve-Pfad (`mjpeg_server.py`, `stream serve`), der ein echtes USB/V4L2-Gerät **oder eine echte RTSP-IP-Kamera** (`source_type: "ip"` in `config.py`, `cv2.CAP_FFMPEG` in `mjpeg_server.py`) über OpenCV öffnet und echtes MJPEG über HTTP ausliefert - installierbar auf einer CM5 über `provisioning/install_vision_streamer.sh` von `HYDRA-UMC-OS` (eine systemd-Instanz pro vom Administrator zugewiesenem Kamera-Slot, `systemd/hydra-umc-vision-streamer@.service`) und bereits live genutzt vom `GET /api/camera/:id/stream`-Proxy von `HYDRA-UMC-SERVER` und den Kameraansichten von `HYDRA-UMC-STUDIO`. Der IP-Kamera-Pfad ist Ende-zu-Ende gegen echte Hardware verifiziert: alle 4 echten IP-Kameras im lokalen Netzwerk öffneten sich und übertrugen echte Frames über den vollständigen echten Pfad - 142 Tests insgesamt, plus ein echtes.Siehe [`CHANGELOG.md`](CHANGELOG.md) für die erfasste Build-/Run-Ausgabe.
+**Was heute funktioniert:** die Konfigurationsvalidierung, die Generierung der GStreamer-Pipeline-Beschreibung, und die Generierung der MediaMTX-Relay-Konfiguration (`config.py`, `pipeline.py`, `mediamtx_config.py`), ein echter, nachweislich begrenzter Puffer und eine echte deterministische Wiederverbindungspolitik (`buffer.py`, `reconnect.py`, `stream simulate`), eine echte HailoRT-Integrationsgrenze (`hailo_runtime.py`), bereit für ein echtes Hailo-8-Modul, sobald es angeschlossen wird, und ein echter v0-Capture+Serve-Pfad (`mjpeg_server.py`, `stream serve`), der ein echtes USB/V4L2-Gerät **oder eine echte RTSP-IP-Kamera** (`source_type: "ip"` in `config.py`, `cv2.CAP_FFMPEG` in `mjpeg_server.py`) über OpenCV öffnet und echtes MJPEG über HTTP ausliefert - installierbar auf einer CM5 über `provisioning/install_vision_streamer.sh` von `HYDRA-UMC-OS` (eine systemd-Instanz pro vom Administrator zugewiesenem Kamera-Slot, `systemd/hydra-umc-vision-streamer@.service`) und bereits live genutzt vom `GET /api/camera/:id/stream`-Proxy von `HYDRA-UMC-SERVER` und den Kameraansichten von `HYDRA-UMC-STUDIO`. Der IP-Kamera-Pfad ist Ende-zu-Ende gegen echte Hardware verifiziert: alle 4 echten IP-Kameras im lokalen Netzwerk öffneten sich und übertrugen echte Frames über den vollständigen echten Pfad - 146 Tests insgesamt, plus ein echtes.Siehe [`CHANGELOG.md`](CHANGELOG.md) für die erfasste Build-/Run-Ausgabe.
 
 **Was noch offen ist, ohne bestimmte Reihenfolge, ohne verbindlichen Zeitplan, und blockiert durch echte Hardware:**
 
