@@ -92,3 +92,70 @@ def test_validate_frame_matches_input_rejects_a_transposed_resolution():
     model = _model(input_shape=(1080, 1920, 3))  # expects height=1080, width=1920
     with pytest.raises(FrameShapeError, match="cam0.*configured at 1080x1920"):
         validate_frame_matches_input(camera, model)
+
+
+# --- a model built from the bytes the registry verified ---------------------------------------------
+
+import hashlib
+import sys
+import types
+
+from hydra_umc_vision_streamer.hailo_runtime import ModelIntegrityError
+
+
+class _FakeInfo:
+    def __init__(self, name, shape):
+        self.name, self.shape = name, shape
+
+
+class _FakeHef:
+    sources: list = []
+
+    def __init__(self, source):
+        _FakeHef.sources.append(source)
+
+    def get_input_vstream_infos(self):
+        return [_FakeInfo("in", (4, 4, 3))]
+
+    def get_output_vstream_infos(self):
+        return [_FakeInfo("out", (10, 5))]
+
+
+class _FakeVDevice:
+    def configure(self, hef, params):
+        return ["group"]
+
+
+@pytest.fixture
+def fake_hailo(monkeypatch):
+    module = types.SimpleNamespace(
+        HEF=_FakeHef,
+        ConfigureParams=types.SimpleNamespace(create_from_hef=lambda hef, interface=None: "params"),
+        HailoStreamInterface=types.SimpleNamespace(PCIe="pcie"),
+    )
+    monkeypatch.setitem(sys.modules, "hailo_platform", module)
+    _FakeHef.sources = []
+    return module
+
+
+def test_the_model_is_built_from_the_verified_bytes_and_the_path_is_not_opened(fake_hailo):
+    data = b"hef-bytes"
+    model = load_hailo_detection_model(_FakeVDevice(), Path("does-not-exist.hef"), hef_bytes=data, expected_sha256=hashlib.sha256(data).hexdigest())
+    assert _FakeHef.sources == [data]
+    assert model.input_shape == (4, 4, 3)
+
+
+def test_bytes_that_do_not_match_the_checksum_are_refused_before_anything_is_configured(fake_hailo):
+    with pytest.raises(ModelIntegrityError, match="checksum"):
+        load_hailo_detection_model(_FakeVDevice(), Path("m.hef"), hef_bytes=b"other", expected_sha256=hashlib.sha256(b"hef-bytes").hexdigest())
+    assert _FakeHef.sources == []
+
+
+def test_empty_bytes_are_refused(fake_hailo):
+    with pytest.raises(ModelIntegrityError, match="empty"):
+        load_hailo_detection_model(_FakeVDevice(), Path("m.hef"), hef_bytes=b"")
+
+
+def test_without_bytes_the_path_is_opened_as_before(fake_hailo):
+    load_hailo_detection_model(_FakeVDevice(), Path("m.hef"))
+    assert _FakeHef.sources == ["m.hef"]

@@ -40,6 +40,7 @@ existing `CameraConfig`, fully unit-testable without hailort.
 """
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -61,6 +62,10 @@ _BYTES_PER_PIXEL = {"RGB": 3, "RGBA": 4}
 
 class HailoNotAvailableError(RuntimeError):
     """Raised when hailo_platform (the hailort package) is not importable."""
+
+
+class ModelIntegrityError(ValueError):
+    """Raised when the bytes of a model are not the ones the registry vouched for."""
 
 
 class FrameShapeError(ValueError):
@@ -96,7 +101,18 @@ def open_vdevice() -> object:
     return VDevice()
 
 
-def load_hailo_detection_model(vdevice: object, hef_path: Path) -> HailoDetectionModel:
+def _check_model_bytes(hef_path: Path, hef_bytes: bytes, expected_sha256: str | None) -> None:
+    """The model is built from the bytes that were verified, not from a path that may now point somewhere else: the bytes
+    must be a non-empty `bytes` and, when the registry gave a checksum, hash to it."""
+    if not isinstance(hef_bytes, (bytes, bytearray)) or not hef_bytes:
+        raise ModelIntegrityError(f"{hef_path}: the verified model bytes are empty")
+    if expected_sha256 is not None and hashlib.sha256(hef_bytes).hexdigest() != expected_sha256.strip().lower():
+        raise ModelIntegrityError(f"{hef_path}: the model bytes do not match the checksum of the registry")
+
+
+def load_hailo_detection_model(
+    vdevice: object, hef_path: Path, *, hef_bytes: bytes | None = None, expected_sha256: str | None = None
+) -> HailoDetectionModel:
     """Configure a real detection .hef onto an already-open VDevice and
     extract its real input/output vstream shapes.
 
@@ -108,6 +124,13 @@ def load_hailo_detection_model(vdevice: object, hef_path: Path) -> HailoDetectio
     one decoded camera frame at a time) but tolerates any number of
     output vstreams, since a real detection model's NMS-postprocessed
     output layout isn't parsed here (see this module's own header).
+
+    `hef_bytes` are the bytes the model registry (`HYDRA-UMC-DETECTION-HEF`,
+    `safe_load(..., keep_bytes=True)` -> `LoadResult.data`) already read and
+    checked: the HEF is then built from those bytes and the path is never
+    reopened, so a file replaced (or a symlink repointed) after the check
+    cannot be what runs. With `expected_sha256` the bytes are hashed again
+    here. Without `hef_bytes` the path is opened as before.
     """
     try:
         from hailo_platform import (  # type: ignore[import-not-found]
@@ -118,7 +141,9 @@ def load_hailo_detection_model(vdevice: object, hef_path: Path) -> HailoDetectio
     except ImportError as error:
         raise HailoNotAvailableError(HAILORT_INSTALL_HINT) from error
 
-    hef = HEF(str(hef_path))
+    if hef_bytes is not None:
+        _check_model_bytes(hef_path, hef_bytes, expected_sha256)
+    hef = HEF(bytes(hef_bytes)) if hef_bytes is not None else HEF(str(hef_path))
     configure_params = ConfigureParams.create_from_hef(hef, interface=HailoStreamInterface.PCIe)
     network_groups = vdevice.configure(hef, configure_params)
     network_group = network_groups[0]

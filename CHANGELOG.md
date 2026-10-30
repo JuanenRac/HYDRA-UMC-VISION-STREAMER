@@ -4,6 +4,8 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+- **The detection model can be built from the bytes the registry verified:** `load_hailo_detection_model(..., hef_bytes=..., expected_sha256=...)` builds the HEF from the bytes that `HYDRA-UMC-DETECTION-HEF` read and checked (`safe_load(..., keep_bytes=True)`) and never reopens the path, so a file replaced (or a symlink repointed) after the check cannot be what runs; the bytes are hashed again when a checksum is given, and empty or different bytes raise `ModelIntegrityError`. Without `hef_bytes` the path is opened as before. 4 tests.
+
 - **The notes of the project manifest no longer carry a hand-written test count:** the counts went out of date at every change; the number of tests is stated by the README, which is checked against the code.
 - **The introduction no longer promises the Pi 5 ISP for USB cameras:** the README (and its seven translations) and the diagram say that the frame pre-processing has no backend yet, because the ISP of the Raspberry Pi 5 serves cameras on the CSI connector, not USB cameras; `docs/CLI_REFERENCE.md` says the same.
 - **README in the universal layout:** the README and its seven translations follow the layout that the four families share (22 sections in a fixed order), with an architecture picture and a repository-structure picture drawn from `docs/architecture.json` and `docs/structure.json`; the CI validator checks both pictures and the file tree.
