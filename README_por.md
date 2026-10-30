@@ -40,7 +40,7 @@ GPL-3.0-or-later - see LICENSE
 | Testes | 146 (`python -m pytest -q tests`) |
 | Tecnologia | Python / GStreamer / MediaMTX |
 | Destino | O Raspberry Pi CM5 de uma célula HYDRA-UMC |
-| Em hardware real | Ainda não: não há registo de execução em hardware real para esta versão |
+| Em hardware real | Executado numa bancada de ensaio: a verificação de honestidade acima diz que partes correram em hardware real |
 
 **Ir para:** [Visão geral](#-visão-geral) · [Arquitetura](#-arquitetura) · [Início rápido](#-início-rápido) · [Testes](#-testes) · [Estrutura do repositório](#-estrutura-do-repositório) · [Projetos relacionados](#-projetos-relacionados)
 
@@ -54,7 +54,7 @@ Cada linha é uma parte deste repositório e a luz diz até onde chega hoje. É 
 |---|---|---|
 | Software | 🟢 | Completo para o seu propósito e estável; a verificação de honestidade acima lista os limites conhecidos |
 | Testes | 🟢 | 146 testes automáticos, executados a cada alteração |
-| Hardware real | 🔴 | Ainda não: não há registo de execução em hardware real para esta versão |
+| Hardware real | 🟡 | Executado numa bancada de ensaio: a verificação de honestidade acima diz que partes correram em hardware real |
 | Documentação | 🟢 | README em oito idiomas, verificado contra o manifesto a cada alteração |
 
 ## 🎯 Visão geral
