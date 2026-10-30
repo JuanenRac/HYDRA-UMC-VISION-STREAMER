@@ -4,6 +4,8 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [0.2.2] - The detection model built from the verified bytes and an introduction that no longer promises the Pi 5 ISP for USB cameras
+
 - **The detection model can be built from the bytes the registry verified:** `load_hailo_detection_model(..., hef_bytes=..., expected_sha256=...)` builds the HEF from the bytes that `HYDRA-UMC-DETECTION-HEF` read and checked (`safe_load(..., keep_bytes=True)`) and never reopens the path, so a file replaced (or a symlink repointed) after the check cannot be what runs; the bytes are hashed again when a checksum is given, and empty or different bytes raise `ModelIntegrityError`. Without `hef_bytes` the path is opened as before. 4 tests.
 
 - **The notes of the project manifest no longer carry a hand-written test count:** the counts went out of date at every change; the number of tests is stated by the README, which is checked against the code.
