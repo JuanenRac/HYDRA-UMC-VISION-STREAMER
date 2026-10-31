@@ -21,7 +21,7 @@ GPL-3.0-or-later - see LICENSE
   <img src="https://img.shields.io/badge/Interface-8x%20USB%203.0-blue.svg" alt="Interface">
   <img src="https://img.shields.io/badge/Stage-Functional%20v0-green.svg" alt="Stage">
   <img src="https://img.shields.io/badge/Tests-163%20passing-2ea44f.svg" alt="Tests">
-  <img src="https://img.shields.io/badge/Version-0.2.2-0f6cbd.svg" alt="Version">
+  <img src="https://img.shields.io/badge/Version-0.2.3-0f6cbd.svg" alt="Version">
   <img src="https://img.shields.io/badge/Maturity-established-2EA44F.svg" alt="Maturity">
 </p>
 
@@ -35,7 +35,7 @@ GPL-3.0-or-later - see LICENSE
 
 | | |
 |---|---|
-| Versione | `0.2.2` |
+| Versione | `0.2.3` |
 | Maturità | Consolidato |
 | Test | 163 (`python -m pytest -q tests`) |
 | Tecnologia | Python / GStreamer / MediaMTX |
