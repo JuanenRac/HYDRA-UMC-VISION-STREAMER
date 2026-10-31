@@ -29,6 +29,7 @@ from .access import bind_problem, load_token
 from .buffer import FrameBuffer
 from .config import ConfigError, load_cameras
 from .mediamtx_config import build_mediamtx_paths_yaml, rtsp_url_for
+from .snapshot import SnapshotError, check_max_skew_ms
 from .mjpeg_server import DEFAULT_MAX_CLIENTS, CameraUnavailableError, discover_usb_devices, serve_camera, serve_cameras
 from .pipeline import build_capture_pipeline
 from .reconnect import ConnectionState, ConnectionTracker, ReconnectPolicy
@@ -243,10 +244,17 @@ def _cmd_stream_serve_all(args: argparse.Namespace) -> int:
     if problem:
         print(f"error: {problem}", file=sys.stderr)
         return 2
+    skew = getattr(args, "snapshot_max_skew_ms", None)
+    if skew is not None:
+        try:
+            check_max_skew_ms(skew)
+        except SnapshotError as exc:
+            print(f"error: --snapshot-max-skew-ms: {exc}", file=sys.stderr)
+            return 2
     try:
         serve_cameras(
             {c.name: (_device_of(c), c.width, c.height, c.fps) for c in cameras},
-            args.addr, args.port, args.max_clients, token,
+            args.addr, args.port, args.max_clients, token, skew,
         )
     except CameraUnavailableError as exc:
         print(f"error: {exc}", file=sys.stderr)
@@ -362,6 +370,10 @@ def _build_parser() -> argparse.ArgumentParser:
     every.add_argument(
         "--token-file", default=None, dest="token_file",
         help="File with the bearer token every request but GET /health must present (or the HYDRA_UMC_VISION_STREAMER_TOKEN environment variable). Needed to bind an address that is not loopback.",
+    )
+    every.add_argument(
+        "--snapshot-max-skew-ms", type=float, default=None, dest="snapshot_max_skew_ms",
+        help="Turn on GET /snapshot.json and /snapshot.zip (off by default): the newest frame of every camera and how far apart they were captured; the snapshot is flagged synchronized only when that gap is within this many milliseconds",
     )
     every.set_defaults(func=_cmd_stream_serve_all)
 

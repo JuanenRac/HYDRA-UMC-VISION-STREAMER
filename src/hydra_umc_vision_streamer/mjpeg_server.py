@@ -49,6 +49,7 @@ from .access import authorized, reject
 from .buffer import FrameBuffer
 from .config import redact_credentials
 from .reconnect import ConnectionState, ConnectionTracker, default_policy
+from .snapshot import build_zip, check_max_skew_ms, describe
 
 logger = logging.getLogger(__name__)
 
@@ -414,18 +415,20 @@ def make_handler(source: MjpegCaptureSource, max_clients: int = DEFAULT_MAX_CLIE
     return _build_handler({"": source}, max_clients, token)
 
 
-def make_multi_handler(cameras: dict[str, MjpegCaptureSource], max_clients: int = DEFAULT_MAX_CLIENTS, token: str = "") -> type[BaseHTTPRequestHandler]:
+def make_multi_handler(cameras: dict[str, MjpegCaptureSource], max_clients: int = DEFAULT_MAX_CLIENTS, token: str = "", snapshot_max_skew_ms: float | None = None) -> type[BaseHTTPRequestHandler]:
     """One handler for several cameras served by this one process: `GET /<name>/stream`, `/<name>/latest.jpg`, `/<name>/latest.json` and
-    `/<name>/health`, and `GET /health` for the whole process (healthy only while every camera is). `max_clients` applies to each camera."""
+    `/<name>/health`, and `GET /health` for the whole process (healthy only while every camera is). `max_clients` applies to each camera.
+    With `snapshot_max_skew_ms` (off by default) `GET /snapshot.json` and `GET /snapshot.zip` answer the newest frame of every camera and how far apart in time they were captured (snapshot.py)."""
     if not cameras:
         raise ValueError("at least one camera is needed")
     for name in cameras:
         if not name or not all(c.isalnum() or c in "-_." for c in name):
             raise ValueError(f"camera name {name!r} cannot be used in an address")
-    return _build_handler(dict(cameras), max_clients, token)
+    skew = None if snapshot_max_skew_ms is None else check_max_skew_ms(snapshot_max_skew_ms)
+    return _build_handler(dict(cameras), max_clients, token, skew)
 
 
-def _build_handler(sources: dict[str, MjpegCaptureSource], max_clients: int, token: str) -> type[BaseHTTPRequestHandler]:
+def _build_handler(sources: dict[str, MjpegCaptureSource], max_clients: int, token: str, snapshot_max_skew_ms: float | None = None) -> type[BaseHTTPRequestHandler]:
     multi = "" not in sources
     lock = threading.Lock()
     active_by_camera: dict[str, int] = {name: 0 for name in sources}
@@ -471,6 +474,24 @@ def _build_handler(sources: dict[str, MjpegCaptureSource], max_clients: int, tok
         h.send_header("X-Capture-Ts", str(int(frame.capture_ts * 1000)))
         h.end_headers()
         h.wfile.write(frame.payload)
+
+    def serve_snapshot(h, as_zip: bool) -> None:
+        frames = {name: (src.latest_frame() if hasattr(src, "latest_frame") else None) for name, src in sources.items()}
+        manifest = describe(frames, snapshot_max_skew_ms)  # type: ignore[arg-type]
+        if not as_zip:
+            reply_json(h, 200 if any(c["available"] for c in manifest["cameras"].values()) else 503, manifest)
+            return
+        if not manifest["complete"]:
+            reply_json(h, 503, manifest)
+            return
+        body = build_zip(frames, manifest)
+        h.send_response(200)
+        h.send_header("Content-Type", "application/zip")
+        h.send_header("Content-Length", str(len(body)))
+        h.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+        h.send_header("X-Synchronized", "1" if manifest["synchronized"] else "0")
+        h.end_headers()
+        h.wfile.write(body)
 
     def take_slot(handler_cls, name: str) -> bool:
         with lock:
@@ -561,6 +582,9 @@ def _build_handler(sources: dict[str, MjpegCaptureSource], max_clients: int, tok
             if not authorized(self, token):
                 reject(self)
                 return
+            if multi and snapshot_max_skew_ms is not None and path in ("/snapshot.json", "/snapshot.zip"):
+                serve_snapshot(self, path.endswith(".zip"))
+                return
             resolved = resolve(path)
             if resolved is None:
                 self.send_response(404)
@@ -624,6 +648,7 @@ def serve_cameras(
     port: int,
     max_clients: int = DEFAULT_MAX_CLIENTS,
     token: str = "",
+    snapshot_max_skew_ms: float | None = None,
 ) -> None:
     """All the cameras in one process and one port (`GET /<name>/stream` ...), instead of a process, an interpreter and a copy of OpenCV for
     each camera. `cameras` maps a name to `(device, width, height, fps)`. Every camera is opened before the port is bound, and if one cannot
@@ -635,7 +660,7 @@ def serve_cameras(
             source = MjpegCaptureSource(device=device, width=width, height=height, fps=fps)
             source.start()
             sources[name] = source
-        server = ThreadingHTTPServer((addr, port), make_multi_handler(sources, max_clients, token))
+        server = ThreadingHTTPServer((addr, port), make_multi_handler(sources, max_clients, token, snapshot_max_skew_ms))
         logger.info("MJPEG streams for %d camera(s) serving on http://%s:%s/<name>/stream", len(sources), addr, port)
         stop = threading.Event()
 

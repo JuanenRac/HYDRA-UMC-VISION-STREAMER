@@ -4,6 +4,8 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+- **Synchronized snapshot of all the cameras (off by default):** `stream serve-all --snapshot-max-skew-ms MS` turns on `GET /snapshot.json`, which answers the identity of the newest frame of every camera (session, frame id, capture instant, age, size) and the skew between the earliest and the latest capture, and `GET /snapshot.zip`, which holds one JPEG per camera and that manifest. A snapshot is flagged `synchronized` only when every camera has a frame and the skew is within the limit (0 to 60000 ms); one that is not is still returned, flagged, and the archive is refused with 503 while a camera has no frame. Both routes need the token when there is one and answer 404 while the switch is off.
+
 ## [0.2.2] - The detection model built from the verified bytes and an introduction that no longer promises the Pi 5 ISP for USB cameras
 
 - **The detection model can be built from the bytes the registry verified:** `load_hailo_detection_model(..., hef_bytes=..., expected_sha256=...)` builds the HEF from the bytes that `HYDRA-UMC-DETECTION-HEF` read and checked (`safe_load(..., keep_bytes=True)`) and never reopens the path, so a file replaced (or a symlink repointed) after the check cannot be what runs; the bytes are hashed again when a checksum is given, and empty or different bytes raise `ModelIntegrityError`. Without `hef_bytes` the path is opened as before. 4 tests.
