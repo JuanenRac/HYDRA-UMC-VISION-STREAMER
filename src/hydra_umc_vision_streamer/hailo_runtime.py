@@ -145,7 +145,7 @@ def load_hailo_detection_model(
         _check_model_bytes(hef_path, hef_bytes, expected_sha256)
     hef = HEF(bytes(hef_bytes)) if hef_bytes is not None else HEF(str(hef_path))
     configure_params = ConfigureParams.create_from_hef(hef, interface=HailoStreamInterface.PCIe)
-    network_groups = vdevice.configure(hef, configure_params)
+    network_groups = vdevice.configure(hef, configure_params)  # type: ignore[attr-defined]
     network_group = network_groups[0]
 
     input_infos = hef.get_input_vstream_infos()

@@ -164,7 +164,7 @@ class MjpegCaptureSource:
 
     def start(self) -> None:
         try:
-            import cv2  # noqa: PLC0415 - deliberately lazy, see class docstring
+            import cv2  # noqa: F401, PLC0415
         except ImportError as exc:
             raise RuntimeError(
                 "opencv-python (cv2) is not installed - install python3-opencv "
@@ -266,7 +266,7 @@ class MjpegCaptureSource:
         tracker = ConnectionTracker(default_policy())
         consecutive_failures = 0
         while not self._stop.is_set():
-            ok, frame = self._cap.read()
+            ok, frame = self._cap.read()  # type: ignore[attr-defined]
             if not ok or frame is None:
                 consecutive_failures += 1
                 self.last_error = f"{consecutive_failures} consecutive failed reads from {self.display_device}"
