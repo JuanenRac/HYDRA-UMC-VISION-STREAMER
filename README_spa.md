@@ -55,6 +55,11 @@ Cada línea es una parte de este repositorio y la luz dice hasta dónde llega ho
 | Software | 🟢 | Completo para su propósito y estable; la comprobación de honestidad de arriba lista los límites conocidos |
 | Pruebas | 🟢 | 163 pruebas automáticas, ejecutadas en cada cambio |
 | Hardware real | 🟡 | Ejecutado en un banco de pruebas: la comprobación de honestidad de arriba dice qué partes funcionaron en hardware real |
+| Interfaz y protocolos | 🟡 | Las rutas o los mensajes que ofrece están documentados y probados con un cliente; aún no los han usado todos los clientes |
+| Integración | 🟡 | Sus mensajes y rutas se comprueban contra los contratos compartidos del SDK; no ha funcionado junto con el equipo real |
+| Seguridad | 🟡 | El control de acceso, los límites de entrada o las firmas están implementados y probados en un ordenador; nadie ajeno al proyecto los ha revisado |
+| Despliegue | 🟠 | Existe un instalador; todavía no se ha ejecutado en el banco de pruebas de la CM5 como servicio |
+| Operación | 🟠 | Escribe registros; todavía no tiene punto de métricas ni de salud |
 | Documentación | 🟢 | README en ocho idiomas, comprobado contra el manifiesto en cada cambio |
 
 ## 🎯 Resumen

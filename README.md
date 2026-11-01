@@ -55,6 +55,11 @@ Each line is one part of this repository and the light says how far it is today.
 | Software | 🟢 | Complete for its purpose and stable; the honesty check above lists the known limits |
 | Tests | 🟢 | 163 automated tests, run on every change |
 | Real hardware | 🟡 | Run on a bench setup: the honesty check above says which parts ran on real hardware |
+| Interface and protocols | 🟡 | The routes or messages it offers are documented and tested with a client; not every client has used them yet |
+| Integration | 🟡 | Its messages and routes are checked against the shared contracts of the SDK; it has not run together with the real equipment |
+| Security | 🟡 | Access control, input limits or signatures are implemented and tested on a computer; nobody outside the project has reviewed them |
+| Deployment | 🟠 | An installer exists; it has not been run on the CM5 test bench as a service yet |
+| Operation | 🟠 | It writes logs; it has no metrics or health endpoint yet |
 | Documentation | 🟢 | README in eight languages, checked against the manifest on every change |
 
 ## 🎯 Overview
