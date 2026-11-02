@@ -32,6 +32,8 @@ from .mediamtx_config import build_mediamtx_paths_yaml, rtsp_url_for
 from .snapshot import SnapshotError, check_max_skew_ms
 from .mjpeg_server import DEFAULT_MAX_CLIENTS, CameraUnavailableError, discover_usb_devices, serve_camera, serve_cameras
 from .pipeline import build_capture_pipeline
+from .publisher import PublishConfig, PublishError, load_publish_config
+from .recorder import RecordingConfig, RecordingError, load_recording_config
 from .reconnect import ConnectionState, ConnectionTracker, ReconnectPolicy
 
 PROJECT_NAME = "HYDRA-UMC-VISION-STREAMER"
@@ -157,6 +159,20 @@ def _cmd_stream_simulate(args: argparse.Namespace) -> int:
     return 0
 
 
+def _load_optional_configs(args: argparse.Namespace) -> tuple[RecordingConfig | None, PublishConfig | None, str | None]:
+    """The recording and publishing files named on the command line (both off unless named, and each file must also say enabled).
+    Returns (recording, publishing, error message or None)."""
+    recording = publishing = None
+    try:
+        if getattr(args, "recording", None):
+            recording = load_recording_config(args.recording)
+        if getattr(args, "publish", None):
+            publishing = load_publish_config(args.publish)
+    except (RecordingError, PublishError) as exc:
+        return None, None, str(exc)
+    return recording, publishing, None
+
+
 def _cmd_stream_serve(args: argparse.Namespace) -> int:
     """Real, blocking capture+serve - see mjpeg_server.py's own module
     docstring for why OpenCV rather than the GStreamer pipeline
@@ -201,8 +217,12 @@ def _cmd_stream_serve(args: argparse.Namespace) -> int:
     if problem:
         print(f"error: {problem}", file=sys.stderr)
         return 2
+    recording, publishing, problem = _load_optional_configs(args)
+    if problem:
+        print(f"error: {problem}", file=sys.stderr)
+        return 2
     try:
-        serve_camera(device, args.addr, args.port, width, height, fps, args.max_clients, token)
+        serve_camera(device, args.addr, args.port, width, height, fps, args.max_clients, token, recording, publishing)
     except CameraUnavailableError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
@@ -251,10 +271,14 @@ def _cmd_stream_serve_all(args: argparse.Namespace) -> int:
         except SnapshotError as exc:
             print(f"error: --snapshot-max-skew-ms: {exc}", file=sys.stderr)
             return 2
+    recording, publishing, problem = _load_optional_configs(args)
+    if problem:
+        print(f"error: {problem}", file=sys.stderr)
+        return 2
     try:
         serve_cameras(
             {c.name: (_device_of(c), c.width, c.height, c.fps) for c in cameras},
-            args.addr, args.port, args.max_clients, token, skew,
+            args.addr, args.port, args.max_clients, token, skew, recording, publishing,
         )
     except CameraUnavailableError as exc:
         print(f"error: {exc}", file=sys.stderr)
@@ -354,6 +378,16 @@ def _build_parser() -> argparse.ArgumentParser:
         "--token-file", default=None, dest="token_file",
         help="File with the bearer token every request but GET /health must present (or the HYDRA_UMC_VISION_STREAMER_TOKEN environment variable). Needed to bind an address that is not loopback.",
     )
+    real.add_argument(
+        "--recording", default=None, metavar="FILE",
+        help="Turn on the ring recorder (off by default): a JSON file with the seconds kept in memory, the size limit, the post-roll and the folder; it must say "
+             "enabled: true. Adds GET /<camera>/record, GET /<camera>/record/incidents and POST /<camera>/record/trigger.",
+    )
+    real.add_argument(
+        "--publish", default=None, metavar="FILE",
+        help="Turn on publishing to MediaMTX through gst-launch-1.0 (off by default): a JSON file with the program, the RTSP base address and the codec; it must say "
+             "enabled: true. Adds GET /<camera>/publish.",
+    )
     real.set_defaults(func=_cmd_stream_serve)
 
     every = stream_sub.add_parser(
@@ -374,6 +408,16 @@ def _build_parser() -> argparse.ArgumentParser:
     every.add_argument(
         "--snapshot-max-skew-ms", type=float, default=None, dest="snapshot_max_skew_ms",
         help="Turn on GET /snapshot.json and /snapshot.zip (off by default): the newest frame of every camera and how far apart they were captured; the snapshot is flagged synchronized only when that gap is within this many milliseconds",
+    )
+    every.add_argument(
+        "--recording", default=None, metavar="FILE",
+        help="Turn on the ring recorder (off by default): a JSON file with the seconds kept in memory, the size limit, the post-roll and the folder; it must say "
+             "enabled: true. Adds GET /<camera>/record, GET /<camera>/record/incidents and POST /<camera>/record/trigger.",
+    )
+    every.add_argument(
+        "--publish", default=None, metavar="FILE",
+        help="Turn on publishing to MediaMTX through gst-launch-1.0 (off by default): a JSON file with the program, the RTSP base address and the codec; it must say "
+             "enabled: true. Adds GET /<camera>/publish.",
     )
     every.set_defaults(func=_cmd_stream_serve_all)
 

@@ -47,6 +47,8 @@ from urllib.parse import urlparse
 
 from .access import authorized, reject
 from .buffer import FrameBuffer
+from .publisher import FeedPublisher, PublishConfig
+from .recorder import RecordingConfig, RecordingError, RingRecorder, parse_trigger
 from .config import redact_credentials
 from .reconnect import ConnectionState, ConnectionTracker, default_policy
 from .snapshot import build_zip, check_max_skew_ms, describe
@@ -81,6 +83,12 @@ MJPEG_BOUNDARY = "hydraumcframe"
 # concurrent clients instead of buffered frames.
 DEFAULT_MAX_CLIENTS = 5
 SOCKET_TIMEOUT_SECONDS = 30.0
+# largest body of POST /<camera>/record/trigger (a reason and a source)
+TRIGGER_BODY_BYTES = 1024
+
+
+def _reject_constant(name: str) -> float:
+    raise ValueError(f"{name} is not a valid JSON number")
 
 
 @dataclass(frozen=True)
@@ -157,6 +165,8 @@ class MjpegCaptureSource:
         self.frames_captured = 0
         self.last_frame_time: float | None = None  # time.monotonic() of the newest frame
         self.gave_up = threading.Event()  # set when every reconnect attempt was used
+        # the ring recorder of recorder.py when recording is on; it is handed every captured frame
+        self.recorder: RingRecorder | None = None
         self.last_error: str | None = None
         # the initial capture session - a fresh id every time this
         # source (re)starts producing frames, real or reconnected.
@@ -316,8 +326,11 @@ class MjpegCaptureSource:
             with self._new_frame:
                 self.frames_captured += 1
                 self.last_frame_time = time.monotonic()
-                self._buffer.push(Frame(jpeg_bytes, self.frames_captured, self.session_id, capture_ts))
+                captured = Frame(jpeg_bytes, self.frames_captured, self.session_id, capture_ts)
+                self._buffer.push(captured)
                 self._new_frame.notify_all()
+            if self.recorder is not None:
+                self.recorder.add(captured)
 
     def health(self, max_age_seconds: float = 5.0) -> dict:
         """What GET /health reports: whether frames are arriving right now."""
@@ -394,7 +407,8 @@ def _latest_info(frame: Frame | None, now: float | None = None) -> dict:
     }
 
 
-def make_handler(source: MjpegCaptureSource, max_clients: int = DEFAULT_MAX_CLIENTS, token: str = "") -> type[BaseHTTPRequestHandler]:
+def make_handler(source: MjpegCaptureSource, max_clients: int = DEFAULT_MAX_CLIENTS, token: str = "", recorder: RingRecorder | None = None,
+                 publisher: FeedPublisher | None = None) -> type[BaseHTTPRequestHandler]:
     """Builds a request handler bound to one specific capture source - the
     real HTTP wire format HYDRA-UMC-SERVER's own proxy and every real
     client (MjpegPlayer.kt, CameraPIP) already expect: a `multipart/x-mixed-replace`
@@ -412,10 +426,11 @@ def make_handler(source: MjpegCaptureSource, max_clients: int = DEFAULT_MAX_CLIE
     `token`, when not empty, is the Bearer token every request but GET /health
     must present (see access.py); empty means no token, which is only allowed
     on loopback."""
-    return _build_handler({"": source}, max_clients, token)
+    return _build_handler({"": source}, max_clients, token, None, {"": recorder} if recorder else None, {"": publisher} if publisher else None)
 
 
-def make_multi_handler(cameras: dict[str, MjpegCaptureSource], max_clients: int = DEFAULT_MAX_CLIENTS, token: str = "", snapshot_max_skew_ms: float | None = None) -> type[BaseHTTPRequestHandler]:
+def make_multi_handler(cameras: dict[str, MjpegCaptureSource], max_clients: int = DEFAULT_MAX_CLIENTS, token: str = "", snapshot_max_skew_ms: float | None = None,
+                       recorders: dict[str, RingRecorder] | None = None, publishers: dict[str, FeedPublisher] | None = None) -> type[BaseHTTPRequestHandler]:
     """One handler for several cameras served by this one process: `GET /<name>/stream`, `/<name>/latest.jpg`, `/<name>/latest.json` and
     `/<name>/health`, and `GET /health` for the whole process (healthy only while every camera is). `max_clients` applies to each camera.
     With `snapshot_max_skew_ms` (off by default) `GET /snapshot.json` and `GET /snapshot.zip` answer the newest frame of every camera and how far apart in time they were captured (snapshot.py)."""
@@ -425,11 +440,14 @@ def make_multi_handler(cameras: dict[str, MjpegCaptureSource], max_clients: int 
         if not name or not all(c.isalnum() or c in "-_." for c in name):
             raise ValueError(f"camera name {name!r} cannot be used in an address")
     skew = None if snapshot_max_skew_ms is None else check_max_skew_ms(snapshot_max_skew_ms)
-    return _build_handler(dict(cameras), max_clients, token, skew)
+    return _build_handler(dict(cameras), max_clients, token, skew, recorders, publishers)
 
 
-def _build_handler(sources: dict[str, MjpegCaptureSource], max_clients: int, token: str, snapshot_max_skew_ms: float | None = None) -> type[BaseHTTPRequestHandler]:
+def _build_handler(sources: dict[str, MjpegCaptureSource], max_clients: int, token: str, snapshot_max_skew_ms: float | None = None,
+                   recorders_in: dict[str, RingRecorder] | None = None, publishers_in: dict[str, FeedPublisher] | None = None) -> type[BaseHTTPRequestHandler]:
     multi = "" not in sources
+    recorders: dict[str, RingRecorder] = recorders_in or {}
+    publishers: dict[str, FeedPublisher] = publishers_in or {}
     lock = threading.Lock()
     active_by_camera: dict[str, int] = {name: 0 for name in sources}
 
@@ -598,16 +616,62 @@ def _build_handler(sources: dict[str, MjpegCaptureSource], max_clients: int, tok
             if rest in ("/latest.jpg", "/latest.json"):
                 serve_latest(self, source, rest.endswith(".json"))
                 return
+            if rest == "/record" and name in recorders:
+                reply_json(self, 200, recorders[name].status())
+                return
+            if rest == "/record/incidents" and name in recorders:
+                reply_json(self, 200, {"camera": name or None, "incidents": recorders[name].list_incidents()})
+                return
+            if rest == "/publish" and name in publishers:
+                reply_json(self, 200, publishers[name].status())
+                return
             if rest not in ("/stream", "/"):
                 self.send_response(404)
                 self.end_headers()
                 return
             serve_stream(self, Handler, name, source)
 
+        def do_POST(self) -> None:  # noqa: N802 - stdlib method name
+            if not authorized(self, token):
+                reject(self)
+                return
+            resolved = resolve(urlparse(self.path).path)
+            if resolved is None or resolved[2] != "/record/trigger" or resolved[0] not in recorders:
+                self.send_response(404)
+                self.end_headers()
+                return
+            recorder = recorders[resolved[0]]
+            try:
+                length = int(self.headers.get("Content-Length", 0))
+                if not 0 < length <= TRIGGER_BODY_BYTES:
+                    raise ValueError(f"the body must hold 1 to {TRIGGER_BODY_BYTES} bytes")
+                body = json.loads(self.rfile.read(length), parse_constant=_reject_constant)
+                reason, origin = parse_trigger(body)
+            except (ValueError, RecordingError) as error:
+                reply_json(self, 400, {"error": str(error)})
+                return
+            result = recorder.trigger(reason, origin)
+            reply_json(self, 202 if result["accepted"] else 429, result)
+
     return Handler
 
 
-def serve_camera(device: str, addr: str, port: int, width: int, height: int, fps: int, max_clients: int = DEFAULT_MAX_CLIENTS, token: str = "") -> None:
+def _recorder_for(name: str, recording: RecordingConfig | None) -> RingRecorder | None:
+    """The ring recorder of a camera, only when the recording file is there and says enabled."""
+    return RingRecorder(name, recording) if recording is not None and recording.enabled else None
+
+
+def _publisher_for(name: str, source: MjpegCaptureSource, publishing: PublishConfig | None) -> FeedPublisher | None:
+    """The MediaMTX publisher of a camera, started, only when the publishing file is there and says enabled."""
+    if publishing is None or not publishing.enabled:
+        return None
+    publisher = FeedPublisher(name, source, publishing)
+    publisher.start()
+    return publisher
+
+
+def serve_camera(device: str, addr: str, port: int, width: int, height: int, fps: int, max_clients: int = DEFAULT_MAX_CLIENTS, token: str = "",
+                 recording: RecordingConfig | None = None, publishing: PublishConfig | None = None) -> None:
     """Real, blocking entry point: opens `device`, starts capturing, and
     serves the real MJPEG stream at http://addr:port/stream until
     interrupted. Raises CameraUnavailableError/RuntimeError immediately
@@ -621,9 +685,12 @@ def serve_camera(device: str, addr: str, port: int, width: int, height: int, fps
     error and its supervisor restarts it instead of leaving a port open that
     serves nothing."""
     source = MjpegCaptureSource(device=device, width=width, height=height, fps=fps)
+    recorder = _recorder_for("camera", recording)
+    source.recorder = recorder
     source.start()
+    publisher = _publisher_for("camera", source, publishing)
     try:
-        server = ThreadingHTTPServer((addr, port), make_handler(source, max_clients, token))
+        server = ThreadingHTTPServer((addr, port), make_handler(source, max_clients, token, recorder, publisher))
         logger.info("MJPEG stream for %s serving on http://%s:%s/stream", source.display_device, addr, port)
 
         def stop_when_given_up() -> None:
@@ -638,7 +705,11 @@ def serve_camera(device: str, addr: str, port: int, width: int, height: int, fps
         if source.gave_up.is_set():
             raise CameraUnavailableError(source.last_error or f"gave up reconnecting to {source.display_device}")
     finally:
+        if publisher is not None:
+            publisher.stop()
         source.stop()
+        if recorder is not None:
+            recorder.flush()
         source.gave_up.set()  # releases the watcher thread on a normal exit
 
 
@@ -649,18 +720,29 @@ def serve_cameras(
     max_clients: int = DEFAULT_MAX_CLIENTS,
     token: str = "",
     snapshot_max_skew_ms: float | None = None,
+    recording: RecordingConfig | None = None,
+    publishing: PublishConfig | None = None,
 ) -> None:
     """All the cameras in one process and one port (`GET /<name>/stream` ...), instead of a process, an interpreter and a copy of OpenCV for
     each camera. `cameras` maps a name to `(device, width, height, fps)`. Every camera is opened before the port is bound, and if one cannot
     be opened none is left running. If any camera is lost for good the whole process stops, so the supervisor restarts it: a half-working
     set of cameras behind one healthy-looking port would hide the lost one."""
     sources: dict[str, MjpegCaptureSource] = {}
+    recorders: dict[str, RingRecorder] = {}
+    publishers: dict[str, FeedPublisher] = {}
     try:
         for name, (device, width, height, fps) in cameras.items():
             source = MjpegCaptureSource(device=device, width=width, height=height, fps=fps)
+            recorder = _recorder_for(name, recording)
+            if recorder is not None:
+                recorders[name] = recorder
+                source.recorder = recorder
             source.start()
             sources[name] = source
-        server = ThreadingHTTPServer((addr, port), make_multi_handler(sources, max_clients, token, snapshot_max_skew_ms))
+            publisher = _publisher_for(name, source, publishing)
+            if publisher is not None:
+                publishers[name] = publisher
+        server = ThreadingHTTPServer((addr, port), make_multi_handler(sources, max_clients, token, snapshot_max_skew_ms, recorders, publishers))
         logger.info("MJPEG streams for %d camera(s) serving on http://%s:%s/<name>/stream", len(sources), addr, port)
         stop = threading.Event()
 
@@ -682,8 +764,12 @@ def serve_cameras(
             if source.gave_up.is_set():
                 raise CameraUnavailableError(source.last_error or f"gave up reconnecting to {source.display_device}")
     finally:
+        for publisher in publishers.values():
+            publisher.stop()
         for source in sources.values():
             source.stop()
+        for recorder in recorders.values():
+            recorder.flush()
 
 
 def discover_usb_devices(max_index: int = 10) -> list[dict]:

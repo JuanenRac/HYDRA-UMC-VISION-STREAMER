@@ -365,6 +365,47 @@ Not yet verified against a real, physically-connected USB camera — only
 against a real RTSP IP camera and against `cv2.VideoCapture` mocked at
 the module boundary in `tests/test_mjpeg_server.py`.
 
+### Ring recording and publishing to MediaMTX (`--recording FILE`, `--publish FILE`)
+
+Both options belong to `stream serve` and `stream serve-all`, both are off unless the option is given **and** its file says `"enabled": true`, and without them
+none of the routes below exists (`404`).
+
+`--recording FILE` keeps the newest frames of each camera in a ring in memory and writes them to disk only when an event asks. The file is a JSON object:
+
+| Key | Default | Meaning |
+|---|---|---|
+| `enabled` | `false` | Must be `true`. |
+| `seconds` | `10` | Seconds of video kept in the ring (1 to 600). |
+| `maxBytes` | `67108864` | Size limit of the ring and of the post-roll (1 MiB to 512 MiB); the newest frame is always kept. |
+| `postSeconds` | `5` | Seconds of frames after the trigger that are added to the incident (0 to 120). |
+| `outDir` | required | Folder of the incidents, relative to the file or absolute, never with `..`; one subfolder per camera. |
+| `maxIncidents` | `5` | Folders kept per camera; older ones are removed (1 to 100). |
+| `minGapSeconds` | `30` | A trigger sooner than this after an accepted one is refused with `429` (0 to 3600). |
+
+| Route | Method | Notes |
+|---|---|---|
+| `/<camera>/record/trigger` | `POST` | Body `{"reason": "1 to 120 printable ASCII characters", "source": "optional name"}` (at most 1024 bytes). `202` with the incident name when accepted, `429` when refused (gap, empty ring, too many incidents waiting), `400` for a bad body. Needs the bearer token when one is set. |
+| `/<camera>/record` | `GET` | The ring (frames, bytes, seconds), the incidents waiting, the number written and on disk, and the last error. |
+| `/<camera>/record/incidents` | `GET` | The incidents on disk, newest first: name, reason, source, instant, frames and bytes. |
+
+An incident is a folder named `<UTC time>-<number>` with `00001.jpg`, `00002.jpg`... in capture order and `incident.json` (camera, reason, source, instant of the trigger, frames before and after, and for every frame its file, id, session, capture instant, size and SHA-256). It is built under a temporary name and renamed when complete. With `stream serve` (one camera) the routes have no camera in the path (`/record/trigger`).
+
+`--publish FILE` runs `gst-launch-1.0` for each camera and feeds it the frames of the capture:
+
+| Key | Default | Meaning |
+|---|---|---|
+| `enabled` | `false` | Must be `true`. |
+| `gstLaunch` | `["gst-launch-1.0"]` | The program, as a list (at most 3 leading arguments). |
+| `rtspBase` | `rtsp://127.0.0.1:8554` | Where MediaMTX listens; the camera is published at `<rtspBase>/<camera>`. Loopback unless `allowRemote` is `true`. |
+| `codec` | `h264` | `h264` encodes with `x264enc`; `mjpeg` sends the JPEG frames on with `rtpjpegpay`. |
+| `bitrateKbps` | `2000` | Bit rate of `x264enc` (100 to 20000). |
+| `mediamtxApi` | none | Address of the MediaMTX API; the status then says whether the path is ready. |
+| `allowRemote` | `false` | Allow `rtspBase` and `mediamtxApi` away from this machine. |
+| `restart` | 5 attempts, 1 s to 30 s | `maxAttempts`, `baseDelaySeconds`, `maxDelaySeconds` of the restart delays. |
+
+`GET /<camera>/publish` answers `state` (`starting`, `publishing`, `restarting`, `given_up`, `unavailable` or `stopped`), `codec`, `url`, `restarts`, `framesSent`, `ready` and `lastError`.
+Needs GStreamer with `rtspclientsink` (and `x264enc` for `h264`) and a running MediaMTX; it has been tried only against a stand-in program.
+
 ## Exit codes
 
 | Code | Meaning |

@@ -20,7 +20,7 @@ GPL-3.0-or-later - see LICENSE
   <img src="https://img.shields.io/badge/Platform-Raspberry%20Pi%20CM5-BC1142.svg" alt="Platform">
   <img src="https://img.shields.io/badge/Interface-8x%20USB%203.0-blue.svg" alt="Interface">
   <img src="https://img.shields.io/badge/Stage-Functional%20v0-green.svg" alt="Stage">
-  <img src="https://img.shields.io/badge/Tests-163%20passing-2ea44f.svg" alt="Tests">
+  <img src="https://img.shields.io/badge/Tests-244%20passing-2ea44f.svg" alt="Tests">
   <img src="https://img.shields.io/badge/Version-0.2.3-0f6cbd.svg" alt="Version">
   <img src="https://img.shields.io/badge/Maturity-established-2EA44F.svg" alt="Maturity">
 </p>
@@ -37,7 +37,7 @@ GPL-3.0-or-later - see LICENSE
 |---|---|
 | バージョン | `0.2.3` |
 | 成熟度 | 確立 |
-| テスト | 163 (`python -m pytest -q tests`) |
+| テスト | 244 (`python -m pytest -q tests`) |
 | 技術 | Python / GStreamer / MediaMTX |
 | 対象 | HYDRA-UMC セルの Raspberry Pi CM5 |
 | 実機での確認 | ベンチ環境で動作：上の正直さの確認に、どの部分が実機で動いたかが書かれています |
@@ -53,7 +53,7 @@ GPL-3.0-or-later - see LICENSE
 | 領域 | 状態 | ここでの意味 |
 |---|---|---|
 | ソフトウェア | 🟢 | 目的に対して完成していて安定しています。既知の制限は上の正直さの確認に書かれています |
-| テスト | 🟢 | 自動テスト 163 件。変更のたびに実行されます |
+| テスト | 🟢 | 自動テスト 244 件。変更のたびに実行されます |
 | 実機 | 🟡 | ベンチ環境で動作：上の正直さの確認に、どの部分が実機で動いたかが書かれています |
 | インターフェースとプロトコル | 🟡 | 提供するルートやメッセージは文書化され、クライアントで試験済みです。すべてのクライアントがまだ使ったわけではありません |
 | 連携 | 🟡 | メッセージとルートは SDK の共通契約に照らして検証されていますが、実機と一緒に動かしたことはありません |
@@ -88,11 +88,13 @@ USB 3.0 カメラストリームを、フレームが Hailo-8 NPU に到達す�
 * ⚡ **ゼロコピーパイプライン（計画中）：** 不要なフレームコピーを避けるよう設計された、V4L2 と HailoRT の間のバッファ受け渡し。*（将来の作業——この環境にはまだない実際の V4L2/HailoRT ランタイムが必要です。）*
 * 🌈 **前処理（計画中、バックエンドは未選定）：** フレームごとに CPU が担うリサイズとピクセルフォーマット変換のリアルタイム処理をオフロードします。Pi 5 の ISP（PiSP）は CSI コネクタのカメラを libcamera 経由で扱うもので、USB カメラは対象外です。USB カメラの変換は CPU か V4L2 のメモリ間ブロックで行うことになりますが、まだ調査も選定もしていません。*（将来の作業：この環境にない実際の V4L2 ランタイムとカメラが必要です。）*
 * 🪪 **フレームの識別、最新フレーム、1 プロセスで複数カメラ：** MJPEG ストリームの各パートは `X-Frame-Id`、`X-Session-Id`、`X-Capture-Ts`（センサーがフレームを渡した時点のエポックからのミリ秒）を持つので、利用側はフレームの古さを計算できます。`GET /latest.jpg` と `GET /latest.json` は、ストリームを開いたままにせず、最新フレームとその識別・古さを返します。`stream serve --config cams.json --camera 名前` はデバイス、サイズ、フレームレート（と IP カメラの RTSP 認証情報）をリストから取るので、ユニットファイルにもプロセス一覧にも現れません。`stream serve-all --config cams.json --port N` はリストのすべてのカメラを 1 つのプロセスと 1 つのポートで配信します（`/<名前>/stream`、`/<名前>/latest.jpg`、`/<名前>/latest.json`、`/<名前>/health`、`/health`）。カメラごとにインタープリターと OpenCV を持つ必要がなくなります。*（模擬ソースで試験済み、実際のカメラでは未検証）*
+* 📼 **イベントで起動するリング録画（既定でオフ）：** `--recording FILE` は各カメラの直近の数秒をメモリに保持し、`POST /<camera>/record/trigger` が届いたときだけ、全フレームの SHA-256 を含むマニフェストと共にディスクへ書き出します（インシデントのブラックボックス）。サイズ、ポストロール、フォルダー、保持するインシデント数、2 回のトリガーの間隔はファイルで指定します。合成フレームでテスト済み。安全サービスからトリガーを送る仕組みはまだありません。
+* 📡 **GStreamer による MediaMTX への配信（既定でオフ）：** `--publish FILE` はカメラごとに `gst-launch-1.0` を子プロセスとして起動し、キャプチャのフレームを渡します（カメラは一度だけ開き、パスワードが引数に現れることはありません）。失敗後は再接続の遅延で再起動し、状態は `GET /<camera>/publish` に表示されます。代替プログラムで試験済み。実際の GStreamer と MediaMTX での確認はこれからです。
 * 🛠️ **動的設定：** カメラごとの解像度、フレームレート、ピクセルフォーマットは今日すでに実装され検証されています（`config.py`）。露出/ゲイン制御は実際の V4L2 デバイスが必要で、将来の作業です。
 * 🧩 **独立したプロジェクトとして存在する理由：** キャプチャ/ISP チューニングは、モデル推論や安全ロジックとは異なるスキルと異なる障害領域を持ちます——独自のプロセスとして保つことで、キャプチャ側のバグが [HYDRA-UMC-SAFETY-ZONES](https://github.com/JuanenRac/HYDRA-UMC-SAFETY-ZONES) を巻き込むことがなくなり、両者を独立して開発・テストできます。
 * 🔐 **検証済みバイト列からの検出モデル:** Hailo の検出モデルは、`HYDRA-UMC-DETECTION-HEF` がすでに読んで確認したバイト列から(ここで再度ハッシュを確認して)組み立てられ、パスは二度と開き直されません。空のバイト列や異なるバイト列は拒否されます。*(Hailo チップ上でモデルを実行したことはまだありません。)*
 
-**正直な現状確認 —— 今日実際に動くもの：** 設定の検証、GStreamer パイプライン記述の生成、MediaMTX リレー設定の生成、そして実際のバッファ/再接続ポリシー、そして実際の HailoRT 統合境界(`config.py`、`pipeline.py`、`mediamtx_config.py`、`buffer.py`、`reconnect.py`、`hailo_runtime.py`)は実装され、テストされています（163 個のテスト）。これらのいずれも V4L2 デバイスを開いたり、GStreamer をインポートしたり、物理カメラと通信したりはしません——生成されたパイプラインを実際に実行するには、この環境にない実際のランタイムとハードウェアが必要です。実際に出荷済みの内容は [`CHANGELOG.md`](CHANGELOG.md)`/stream` は `--max-clients`（既定は 5、それを超えると本物の 503）で同時視聴者数を制限して CM5 の限られた Wi-Fi 上り帯域を守り、読み取りを止めた視聴者を 30 秒後（ソケットのタイムアウト）に切断するため、固まったクライアントが枠を永久に占有することはありません。
+**正直な現状確認 —— 今日実際に動くもの：** 設定の検証、GStreamer パイプライン記述の生成、MediaMTX リレー設定の生成、そして実際のバッファ/再接続ポリシー、そして実際の HailoRT 統合境界(`config.py`、`pipeline.py`、`mediamtx_config.py`、`buffer.py`、`reconnect.py`、`hailo_runtime.py`)は実装され、テストされています（244 個のテスト）。これらのいずれも V4L2 デバイスを開いたり、GStreamer をインポートしたり、物理カメラと通信したりはしません——生成されたパイプラインを実際に実行するには、この環境にない実際のランタイムとハードウェアが必要です。実際に出荷済みの内容は [`CHANGELOG.md`](CHANGELOG.md)`/stream` は `--max-clients`（既定は 5、それを超えると本物の 503）で同時視聴者数を制限して CM5 の限られた Wi-Fi 上り帯域を守り、読み取りを止めた視聴者を 30 秒後（ソケットのタイムアウト）に切断するため、固まったクライアントが枠を永久に占有することはありません。
 を、まだ残っている作業は下記の「現在の状況と次のステップ」セクションを
 参照してください。
 
@@ -166,7 +168,7 @@ Python 3.10 以上が必要です。
 
 ## 🧪 テスト
 
-`python -m pytest -q tests` で自動テスト 163 件を実行します。 ハードウェアも、このマシンの外にあるものも必要ありません。
+`python -m pytest -q tests` で自動テスト 244 件を実行します。 ハードウェアも、このマシンの外にあるものも必要ありません。
 
 CI は `HYDRA_UMC_CI=1 python tools/ci_validate.py` を実行し、マニフェスト、文書、8 つの README、図を検査します。
 
@@ -189,7 +191,7 @@ CI は `HYDRA_UMC_CI=1 python tools/ci_validate.py` を実行し、マニフェ�
 2. **仮想環境** — `.venv/` が存在しない場合は作成し、存在する場合は再利用します。
 3. **Editable インストール** — `pip install -e ".[dev]"` により `src/` 下の変更が即座に反映され、`pytest` がインストールされ、`hydra-umc-vision-streamer` コンソールエントリポイントが登録されます。
 4. **コンパイルチェック** — `python -m compileall -q src` が `src/` 下の各ファイルをバイトコンパイルし、あるファイルが `main.py` から一度もインポートされない場合でも、エコシステム全体にわたる構文エラーを検出します。
-5. **実際のテストスイート** — `python -m pytest tests/ -q`（config、pipeline、MediaMTX 生成、バッファ/再接続ポリシー、HailoRT 統合境界、CLI をカバーする 163 個のテスト）。
+5. **実際のテストスイート** — `python -m pytest tests/ -q`（config、pipeline、MediaMTX 生成、バッファ/再接続ポリシー、HailoRT 統合境界、CLI をカバーする 244 個のテスト）。
 
 `set -euo pipefail` は最初に失敗したステップでスクリプトを停止させます。
 5 つのステップすべてが成功した場合にのみビルドは成功を報告します。
@@ -302,7 +304,7 @@ HYDRA-UMC-VISION-STREAMER/
 
 **現時点の既知の制限**
 
-**今日実現していること：** 設定の検証、GStreamer パイプライン記述の生成、そして MediaMTX リレー設定の生成（`config.py`、`pipeline.py`、`mediamtx_config.py`）、実際の、証明可能な有界バッファと実際の決定論的な再接続ポリシー（`buffer.py`、`reconnect.py`、`stream simulate`）、実際の Hailo-8 モジュールが接続され次第すぐに使える実際の HailoRT 統合境界（`hailo_runtime.py`）、そして OpenCV 経由で実際の USB/V4L2 デバイス**または実際の RTSP IP カメラ**（`config.py` の `source_type: "ip"`、`mjpeg_server.py` の `cv2.CAP_FFMPEG`）を開き、実際の MJPEG を HTTP 経由で配信する実際の v0 キャプチャ＋配信パス（`mjpeg_server.py`、`stream serve`） - `HYDRA-UMC-OS` 自身の `provisioning/install_vision_streamer.sh` により CM5 にインストール可能（管理者が割り当てたカメラスロットごとに 1 つの systemd インスタンス、`systemd/hydra-umc-vision-streamer@.service`）で、すでに `HYDRA-UMC-SERVER` の `GET /api/camera/:id/stream` プロキシと `HYDRA-UMC-STUDIO` のカメラビューによってライブで利用されている。IP カメラ経路は実機に対してエンドツーエンドで検証済み：ローカルネットワーク上の実際の IP カメラ 4 台すべてがこの完全な実経路を通じて開き、本物のフレームを配信しました - 合計 163 個のテスト、さらに検証済みのエントリポイントを持つ実際のインストール
+**今日実現していること：** 設定の検証、GStreamer パイプライン記述の生成、そして MediaMTX リレー設定の生成（`config.py`、`pipeline.py`、`mediamtx_config.py`）、実際の、証明可能な有界バッファと実際の決定論的な再接続ポリシー（`buffer.py`、`reconnect.py`、`stream simulate`）、実際の Hailo-8 モジュールが接続され次第すぐに使える実際の HailoRT 統合境界（`hailo_runtime.py`）、そして OpenCV 経由で実際の USB/V4L2 デバイス**または実際の RTSP IP カメラ**（`config.py` の `source_type: "ip"`、`mjpeg_server.py` の `cv2.CAP_FFMPEG`）を開き、実際の MJPEG を HTTP 経由で配信する実際の v0 キャプチャ＋配信パス（`mjpeg_server.py`、`stream serve`） - `HYDRA-UMC-OS` 自身の `provisioning/install_vision_streamer.sh` により CM5 にインストール可能（管理者が割り当てたカメラスロットごとに 1 つの systemd インスタンス、`systemd/hydra-umc-vision-streamer@.service`）で、すでに `HYDRA-UMC-SERVER` の `GET /api/camera/:id/stream` プロキシと `HYDRA-UMC-STUDIO` のカメラビューによってライブで利用されている。IP カメラ経路は実機に対してエンドツーエンドで検証済み：ローカルネットワーク上の実際の IP カメラ 4 台すべてがこの完全な実経路を通じて開き、本物のフレームを配信しました - 合計 244 個のテスト、さらに検証済みのエントリポイントを持つ実際のインストール
 可能な Python パッケージ、そして、バージョンを上げる明示的な `bump` コマンド。ビルドがバージョンを変えることはありません）。実際に取得されたビルド/実行出力については
 [`CHANGELOG.md`](CHANGELOG.md) を参照してください。
 
