@@ -29,6 +29,8 @@ SupplementaryGroups=video
 WorkingDirectory=/opt/hydra-umc/vision-streamer
 Environment=PYTHONPATH=/opt/hydra-umc/vision-streamer/src
 EnvironmentFile=/etc/hydra-umc/cameras/%i.env
+# Refuse a slot that is not 1-8 before the port is computed from it.
+ExecStartPre=/bin/bash -c 'case "%i" in [1-8]) exit 0;; esac; echo "camera slot must be 1-8" >&2; exit 1'
 ExecStart=/bin/bash -c 'exec /usr/bin/python3 -m hydra_umc_vision_streamer.main stream serve --device "$DEVICE" --addr 127.0.0.1 --port $((8100 + %i - 1))'
 Restart=on-failure
 RestartSec=5

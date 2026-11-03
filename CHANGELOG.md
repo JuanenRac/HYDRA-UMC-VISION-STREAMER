@@ -4,6 +4,8 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+- **The systemd template refuses a camera slot outside 1-8:** an `ExecStartPre` checks the instance name before the port is computed from it, so a mistyped instance fails at start instead of opening an unexpected port.
+
 ## [0.2.4] - The capture opens and reads the RTSP stream with timeouts so a camera that stops answering cannot block the reconnection, a USB camera asks for MJPG with a queue of one frame, and the bench test script lists what needs real cameras
 
 - **Bench test script:** `docs/BENCH_TESTS.md` lists the checks of the USB format, the RTSP timeouts, the reconnection, the recorder, the publisher against a real MediaMTX and the Hailo model that need a real device, all marked not executed.
