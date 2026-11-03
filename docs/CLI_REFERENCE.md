@@ -365,6 +365,10 @@ Not yet verified against a real, physically-connected USB camera — only
 against a real RTSP IP camera and against `cv2.VideoCapture` mocked at
 the module boundary in `tests/test_mjpeg_server.py`.
 
+### Capture tuning (`--capture-tuning FILE`)
+
+Optional on `stream serve` and `stream serve-all`. A JSON object, all keys optional: `rtspOpenTimeoutMs` and `rtspReadTimeoutMs` (100 to 120000, 5000 by default) bound the wait of an RTSP camera when it is opened and when a frame is read, so a camera that stops answering lets the reconnection policy act; `usbFourcc` (four characters, `MJPG` by default, empty to keep the format the driver chooses) and `usbQueueFrames` (1 to 16, 1 by default) shape a USB camera. Without the file the defaults apply. A property the installed OpenCV does not know is skipped.
+
 ### Ring recording and publishing to MediaMTX (`--recording FILE`, `--publish FILE`)
 
 Both options belong to `stream serve` and `stream serve-all`, both are off unless the option is given **and** its file says `"enabled": true`, and without them

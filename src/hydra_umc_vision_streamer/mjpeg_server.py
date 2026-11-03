@@ -46,6 +46,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse
 
 from .access import authorized, reject
+from .capture_tuning import CaptureTuning
 from .buffer import FrameBuffer
 from .publisher import FeedPublisher, PublishConfig
 from .recorder import RecordingConfig, RecordingError, RingRecorder, parse_trigger
@@ -147,8 +148,10 @@ class MjpegCaptureSource:
     hailo_runtime.py already uses for hailort.
     """
 
-    def __init__(self, device: str, width: int, height: int, fps: int, buffer_size: int = 4, jpeg_quality: int = 80) -> None:
+    def __init__(self, device: str, width: int, height: int, fps: int, buffer_size: int = 4, jpeg_quality: int = 80,
+                 tuning: CaptureTuning | None = None) -> None:
         self.device = device
+        self.tuning = tuning if tuning is not None else CaptureTuning()
         # What may appear in logs, error messages and thread names: an RTSP
         # URL carries the camera's password.
         self.display_device = redact_credentials(device)
@@ -218,6 +221,7 @@ class MjpegCaptureSource:
             index_or_path = int(self.device) if self.device.isdigit() else self.device
             backend = cv2.CAP_V4L2 if sys.platform.startswith("linux") else cv2.CAP_ANY
         cap = cv2.VideoCapture(index_or_path, backend)
+        self._tune(cv2, cap, is_ip_camera)
         if not cap.isOpened():
             cap.release()
             kind = "IP camera" if is_ip_camera else "camera device"
@@ -232,6 +236,24 @@ class MjpegCaptureSource:
             cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
             cap.set(cv2.CAP_PROP_FPS, self.fps)
         return cap
+
+    def _tune(self, cv2, cap, is_ip_camera: bool) -> None:
+        """Bound the wait on an RTSP stream and ask a USB camera for compressed frames and a queue of one (see capture_tuning.py).
+        A property the installed OpenCV does not know, or a camera that refuses it, is skipped: the capture then works as it did before."""
+        tuning = self.tuning
+
+        def put(name: str, value: float) -> None:
+            prop = getattr(cv2, name, None)
+            if prop is not None:
+                cap.set(prop, value)
+
+        if is_ip_camera:
+            put("CAP_PROP_OPEN_TIMEOUT_MSEC", tuning.rtsp_open_timeout_ms)
+            put("CAP_PROP_READ_TIMEOUT_MSEC", tuning.rtsp_read_timeout_ms)
+            return
+        if tuning.usb_fourcc and hasattr(cv2, "VideoWriter_fourcc"):
+            put("CAP_PROP_FOURCC", cv2.VideoWriter_fourcc(*tuning.usb_fourcc))
+        put("CAP_PROP_BUFFERSIZE", tuning.usb_queue_frames)
 
     def _reconnect_once(self, tracker: ConnectionTracker) -> bool:
         """One real release-and-reopen attempt, honoring `tracker`'s own
@@ -671,7 +693,8 @@ def _publisher_for(name: str, source: MjpegCaptureSource, publishing: PublishCon
 
 
 def serve_camera(device: str, addr: str, port: int, width: int, height: int, fps: int, max_clients: int = DEFAULT_MAX_CLIENTS, token: str = "",
-                 recording: RecordingConfig | None = None, publishing: PublishConfig | None = None) -> None:
+                 recording: RecordingConfig | None = None, publishing: PublishConfig | None = None,
+                 tuning: CaptureTuning | None = None) -> None:
     """Real, blocking entry point: opens `device`, starts capturing, and
     serves the real MJPEG stream at http://addr:port/stream until
     interrupted. Raises CameraUnavailableError/RuntimeError immediately
@@ -684,7 +707,7 @@ def serve_camera(device: str, addr: str, port: int, width: int, height: int, fps
     stops and this raises CameraUnavailableError, so the process exits with an
     error and its supervisor restarts it instead of leaving a port open that
     serves nothing."""
-    source = MjpegCaptureSource(device=device, width=width, height=height, fps=fps)
+    source = MjpegCaptureSource(device=device, width=width, height=height, fps=fps, tuning=tuning)
     recorder = _recorder_for("camera", recording)
     source.recorder = recorder
     source.start()
@@ -722,6 +745,7 @@ def serve_cameras(
     snapshot_max_skew_ms: float | None = None,
     recording: RecordingConfig | None = None,
     publishing: PublishConfig | None = None,
+    tuning: CaptureTuning | None = None,
 ) -> None:
     """All the cameras in one process and one port (`GET /<name>/stream` ...), instead of a process, an interpreter and a copy of OpenCV for
     each camera. `cameras` maps a name to `(device, width, height, fps)`. Every camera is opened before the port is bound, and if one cannot
@@ -732,7 +756,7 @@ def serve_cameras(
     publishers: dict[str, FeedPublisher] = {}
     try:
         for name, (device, width, height, fps) in cameras.items():
-            source = MjpegCaptureSource(device=device, width=width, height=height, fps=fps)
+            source = MjpegCaptureSource(device=device, width=width, height=height, fps=fps, tuning=tuning)
             recorder = _recorder_for(name, recording)
             if recorder is not None:
                 recorders[name] = recorder

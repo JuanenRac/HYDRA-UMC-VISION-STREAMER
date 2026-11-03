@@ -33,6 +33,7 @@ from .snapshot import SnapshotError, check_max_skew_ms
 from .mjpeg_server import DEFAULT_MAX_CLIENTS, CameraUnavailableError, discover_usb_devices, serve_camera, serve_cameras
 from .pipeline import build_capture_pipeline
 from .publisher import PublishConfig, PublishError, load_publish_config
+from .capture_tuning import CaptureTuning, TuningError, load_capture_tuning
 from .recorder import RecordingConfig, RecordingError, load_recording_config
 from .reconnect import ConnectionState, ConnectionTracker, ReconnectPolicy
 
@@ -159,6 +160,16 @@ def _cmd_stream_simulate(args: argparse.Namespace) -> int:
     return 0
 
 
+def _load_tuning(args: argparse.Namespace) -> tuple[CaptureTuning | None, str | None]:
+    """The capture tuning file named on the command line (the defaults apply without it). Returns (tuning, error message or None)."""
+    if not getattr(args, "capture_tuning", None):
+        return None, None
+    try:
+        return load_capture_tuning(args.capture_tuning), None
+    except TuningError as exc:
+        return None, str(exc)
+
+
 def _load_optional_configs(args: argparse.Namespace) -> tuple[RecordingConfig | None, PublishConfig | None, str | None]:
     """The recording and publishing files named on the command line (both off unless named, and each file must also say enabled).
     Returns (recording, publishing, error message or None)."""
@@ -221,8 +232,12 @@ def _cmd_stream_serve(args: argparse.Namespace) -> int:
     if problem:
         print(f"error: {problem}", file=sys.stderr)
         return 2
+    tuning, problem = _load_tuning(args)
+    if problem:
+        print(f"error: {problem}", file=sys.stderr)
+        return 2
     try:
-        serve_camera(device, args.addr, args.port, width, height, fps, args.max_clients, token, recording, publishing)
+        serve_camera(device, args.addr, args.port, width, height, fps, args.max_clients, token, recording, publishing, tuning)
     except CameraUnavailableError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
@@ -275,10 +290,14 @@ def _cmd_stream_serve_all(args: argparse.Namespace) -> int:
     if problem:
         print(f"error: {problem}", file=sys.stderr)
         return 2
+    tuning, problem = _load_tuning(args)
+    if problem:
+        print(f"error: {problem}", file=sys.stderr)
+        return 2
     try:
         serve_cameras(
             {c.name: (_device_of(c), c.width, c.height, c.fps) for c in cameras},
-            args.addr, args.port, args.max_clients, token, skew, recording, publishing,
+            args.addr, args.port, args.max_clients, token, skew, recording, publishing, tuning,
         )
     except CameraUnavailableError as exc:
         print(f"error: {exc}", file=sys.stderr)
@@ -379,6 +398,10 @@ def _build_parser() -> argparse.ArgumentParser:
         help="File with the bearer token every request but GET /health must present (or the HYDRA_UMC_VISION_STREAMER_TOKEN environment variable). Needed to bind an address that is not loopback.",
     )
     real.add_argument(
+        "--capture-tuning", default=None, metavar="FILE", dest="capture_tuning",
+        help="JSON file with the RTSP open and read timeouts (rtspOpenTimeoutMs, rtspReadTimeoutMs, 5000 by default) and the USB format and queue (usbFourcc MJPG, usbQueueFrames 1); the defaults apply without it.",
+    )
+    real.add_argument(
         "--recording", default=None, metavar="FILE",
         help="Turn on the ring recorder (off by default): a JSON file with the seconds kept in memory, the size limit, the post-roll and the folder; it must say "
              "enabled: true. Adds GET /<camera>/record, GET /<camera>/record/incidents and POST /<camera>/record/trigger.",
@@ -408,6 +431,10 @@ def _build_parser() -> argparse.ArgumentParser:
     every.add_argument(
         "--snapshot-max-skew-ms", type=float, default=None, dest="snapshot_max_skew_ms",
         help="Turn on GET /snapshot.json and /snapshot.zip (off by default): the newest frame of every camera and how far apart they were captured; the snapshot is flagged synchronized only when that gap is within this many milliseconds",
+    )
+    every.add_argument(
+        "--capture-tuning", default=None, metavar="FILE", dest="capture_tuning",
+        help="JSON file with the RTSP open and read timeouts (rtspOpenTimeoutMs, rtspReadTimeoutMs, 5000 by default) and the USB format and queue (usbFourcc MJPG, usbQueueFrames 1); the defaults apply without it.",
     )
     every.add_argument(
         "--recording", default=None, metavar="FILE",
