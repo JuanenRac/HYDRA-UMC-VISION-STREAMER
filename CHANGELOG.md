@@ -4,6 +4,7 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+- **`GET /latest.json` carries the frame as the SDK `FrameMeta` message:** a `frame_meta` object (`schema_version`, `frame_id`, `capture_ts_utc`, `width`, `height`, `pixel_format` `JPEG`, `session_id`) is added next to the existing fields, with the size read from the JPEG header; it is left out when the header cannot be read, and a test checks it against the SDK validator when the SDK is next to this repository.
 - **The systemd template refuses a camera slot outside 1-8:** an `ExecStartPre` checks the instance name before the port is computed from it, so a mistyped instance fails at start instead of opening an unexpected port.
 
 ## [0.2.4] - The capture opens and reads the RTSP stream with timeouts so a camera that stops answering cannot block the reconnection, a USB camera asks for MJPG with a queue of one frame, and the bench test script lists what needs real cameras

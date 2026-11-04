@@ -46,6 +46,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse
 
 from .access import authorized, reject
+from .frame_meta import frame_meta
 from .capture_tuning import CaptureTuning
 from .buffer import FrameBuffer
 from .publisher import FeedPublisher, PublishConfig
@@ -419,7 +420,7 @@ def _latest_info(frame: Frame | None, now: float | None = None) -> dict:
     if frame is None:
         return {"available": False}
     seen = time.time() if now is None else now
-    return {
+    info = {
         "available": True,
         "frame_id": frame.frame_id,
         "session_id": _header_safe(frame.session_id),
@@ -427,6 +428,10 @@ def _latest_info(frame: Frame | None, now: float | None = None) -> dict:
         "data_age_ms": max(0, int((seen - frame.capture_ts) * 1000)),
         "bytes": len(frame.payload),
     }
+    meta = frame_meta(frame)
+    if meta is not None:  # the SDK FrameMeta message, left out when the JPEG size cannot be read
+        info["frame_meta"] = meta
+    return info
 
 
 def make_handler(source: MjpegCaptureSource, max_clients: int = DEFAULT_MAX_CLIENTS, token: str = "", recorder: RingRecorder | None = None,
