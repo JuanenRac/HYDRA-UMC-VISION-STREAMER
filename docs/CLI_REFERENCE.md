@@ -9,7 +9,7 @@ description and the MediaMTX relay config from that configuration, the
 actual backpressure/reconnection policy a live relay needs, and a real
 MJPEG capture+serve path (`stream serve`) that actually opens a USB/V4L2
 device or a real RTSP IP camera via OpenCV and serves the picture over
-HTTP — verified end to end against real IP cameras on the local network.
+HTTP — tested with the simulator only; verification against real IP cameras is pending on the bench.
 Still not implemented: the full GStreamer/PyGObject pipeline
 `config gst`/`config mediamtx` describe, and real Hailo-8 inference.
 Every example below was captured from a real run of the installed CLI —
@@ -346,10 +346,9 @@ USB camera:
 $ hydra-umc-vision-streamer stream serve --device 0 --port 8100
 ```
 
-RTSP IP camera — verified end to end against real hardware on the local
-network (all 4 real IP cameras opened and streamed real MJPEG/H.264
-frames through this exact path; the 2nd pair needed their own real
-RTSP path, `profile0`, rather than the first pair's `/11`):
+RTSP IP camera — simulator-tested only (verification against real
+IP cameras is pending on the bench; a second pair of cameras may need
+its own RTSP path, `profile0` rather than `/11`):
 
 ```bash
 $ CAMERA_URL="rtsp://admin:secret@192.168.0.211:554/11" hydra-umc-vision-streamer stream serve --device-env CAMERA_URL --port 8100 --width 1920 --height 1080 --fps 15

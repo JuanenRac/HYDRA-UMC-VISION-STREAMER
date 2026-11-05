@@ -81,7 +81,7 @@ USB 3.0 カメラストリームを、フレームが Hailo-8 NPU に到達す�
 
 * 🔑 **任意の Bearer トークン：** ループバックではストリームにトークンは不要で、ループバック以外ではトークンなしでは起動しません（`--token-file` または `HYDRA_UMC_VISION_STREAMER_TOKEN`）。トークンを設定すると `/stream` は `Authorization: Bearer <token>` 付きで要求する必要があります（一定時間での比較）。`GET /health` だけは開いたままです。*(実装済み)*
 * ✅ **実装済み v0 —— 設定・パイプライン・リレー生成：** `config.py` はカメラごとの JSON 設定（デバイス、解像度、fps、フォーマット）を検証し、`pipeline.py` はあるカメラの実際の GStreamer パイプライン記述を生成し、`mediamtx_config.py` は対応する MediaMTX の `paths.yml` を生成します。下記の `config validate`/`config gst`/`config mediamtx` から利用可能で、実行にもテストにも GStreamer ランタイム、V4L2、物理カメラは不要です。
-* 📷 **実装済み v0 —— USB および RTSP IP カメラのキャプチャ+配信：** `mjpeg_server.py` の `stream serve` は実際にカメラを開き、HTTP 経由で本物の MJPEG を配信します——USB/V4L2 デバイス（`--device 0`）、または実際の RTSP IP カメラ（`--device rtsp://user:pass@host:port/path`、OpenCV の `cv2.CAP_FFMPEG` バックエンド経由、追加の依存関係なし）。`config.py` の `CameraConfig` は今では実際の `source_type` を持ちます（デフォルトは `"usb"`、または `"ip"` で `host`/`rtsp_port`/`rtsp_path`/`username`/`password` と実際にパーセントエンコードする `rtsp_url()` ビルダーを持ちます）。実機に対してエンドツーエンドで検証済み：ローカルネットワーク上の実際の IP カメラ 4 台すべてがこの同じ経路で開き、本物の MJPEG/H.264 フレームを配信しました（2 台目のペアは、カメラ自身の設定画面で見つけた独自の実際の RTSP パス `profile0` が必要でした——1 台目のペアの `/11` とは異なるパスで、認証情報やファームウェアの問題ではありませんでした）。
+* 📷 **実装済み v0 —— USB および RTSP IP カメラのキャプチャ+配信：** `mjpeg_server.py` の `stream serve` は実際にカメラを開き、HTTP 経由で本物の MJPEG を配信します——USB/V4L2 デバイス（`--device 0`）、または実際の RTSP IP カメラ（`--device rtsp://user:pass@host:port/path`、OpenCV の `cv2.CAP_FFMPEG` バックエンド経由、追加の依存関係なし）。`config.py` の `CameraConfig` は今では実際の `source_type` を持ちます（デフォルトは `"usb"`、または `"ip"` で `host`/`rtsp_port`/`rtsp_path`/`username`/`password` と実際にパーセントエンコードする `rtsp_url()` ビルダーを持ちます）。シミュレータと模擬ソースでのみテスト済みです。実際の IP カメラでの検証は、実機ベンチでの確認待ち（保留）です。ベンチ用メモ：2 組目のカメラは独自の RTSP パス（`/11` ではなく `profile0`）が必要な場合があります。
 * 🔁 **実装済み v0 —— 有界バッファリングと再接続：** `buffer.py` の `FrameBuffer` は満杯になると最も古い項目(最新のものではない)を破棄する固定容量のキューです——遅い消費者がこのプロセス自体のメモリを無制限に増加させることを決して許さない、ライブリレーが必要とする実際のバックプレッシャーポリシーです。`reconnect.py` の `ConnectionTracker` は、切断されたカメラ/リレーリンクのための実際の、決定論的な指数バックオフ再接続ポリシーです。`mjpeg_server.py` 自身の実際のキャプチャ経路は、単なる生バイトではなく `Frame` をバッファします——実際の `frame_id`/`session_id`/`capture_ts` 識別情報を持ち、実際の再接続のたびに本物の新しい `session_id` が割り当てられるため、切断前後のフレームが1つの連続したストリームとして混同されることはありません。下記の `stream simulate` から利用可能で、GStreamer や物理カメラなしで完全にテスト可能です。
 * 📡 **RTSP/WebRTC サポート（一部計画中）：** RTSP リレーパス（`rtspclientsink` → MediaMTX）は設計済みで、その設定は上記で実際に生成されています。実際に実行するにはこの環境にない GStreamer ランタイムが必要です。WebRTC 出力は引き続き完全に計画段階です。
 * 🔌 **モジュールに先立って準備されたHailoRT統合境界：** `hailo_runtime.py` は、実際の確認済み `hailo_platform` API(`VDevice`、`HEF`、`ConfigureParams`)に対して書かれています —— `hailort` パッケージやHailo-8モジュールが存在しなくてもこのリポジトリがクリーンにインストール/テストできるよう遅延インポートされており、さらに、デバイスに1フレームでも送信される前に、カメラの設定済み解像度が実際にロード済みモデルの入力テンソル形状と一致することを検証する実際の事前チェックを備えています。*(実装済み、統合境界のみ —— 実際に推論を実行し、実際のモデルのNMS出力を解析することは依然として将来の作業です。)*
@@ -231,7 +231,7 @@ CI は `HYDRA_UMC_CI=1 python tools/ci_validate.py` を実行し、マニフェ�
 # USB/V4L2 デバイス
 ./run.sh stream serve --device 0 --port 8100
 
-# 実際の RTSP IP カメラ（実機に対して検証済み——CHANGELOG.md を参照）
+# 実際の RTSP IP カメラ（シミュレータでテスト済み。実機での検証は保留中）
 CAMERA_URL="rtsp://admin:secret@192.168.0.211:554/11" ./run.sh stream serve --device-env CAMERA_URL --port 8100 --width 1920 --height 1080 --fps 15
 ```
 
@@ -304,7 +304,7 @@ HYDRA-UMC-VISION-STREAMER/
 
 **現時点の既知の制限**
 
-**今日実現していること：** 設定の検証、GStreamer パイプライン記述の生成、そして MediaMTX リレー設定の生成（`config.py`、`pipeline.py`、`mediamtx_config.py`）、実際の、証明可能な有界バッファと実際の決定論的な再接続ポリシー（`buffer.py`、`reconnect.py`、`stream simulate`）、実際の Hailo-8 モジュールが接続され次第すぐに使える実際の HailoRT 統合境界（`hailo_runtime.py`）、そして OpenCV 経由で実際の USB/V4L2 デバイス**または実際の RTSP IP カメラ**（`config.py` の `source_type: "ip"`、`mjpeg_server.py` の `cv2.CAP_FFMPEG`）を開き、実際の MJPEG を HTTP 経由で配信する実際の v0 キャプチャ＋配信パス（`mjpeg_server.py`、`stream serve`） - `HYDRA-UMC-OS` 自身の `provisioning/install_vision_streamer.sh` により CM5 にインストール可能（管理者が割り当てたカメラスロットごとに 1 つの systemd インスタンス、`systemd/hydra-umc-vision-streamer@.service`）で、すでに `HYDRA-UMC-SERVER` の `GET /api/camera/:id/stream` プロキシと `HYDRA-UMC-STUDIO` のカメラビューによってライブで利用されている。IP カメラ経路は実機に対してエンドツーエンドで検証済み：ローカルネットワーク上の実際の IP カメラ 4 台すべてがこの完全な実経路を通じて開き、本物のフレームを配信しました - 合計 274 個のテスト、さらに検証済みのエントリポイントを持つ実際のインストール
+**今日実現していること：** 設定の検証、GStreamer パイプライン記述の生成、そして MediaMTX リレー設定の生成（`config.py`、`pipeline.py`、`mediamtx_config.py`）、実際の、証明可能な有界バッファと実際の決定論的な再接続ポリシー（`buffer.py`、`reconnect.py`、`stream simulate`）、実際の Hailo-8 モジュールが接続され次第すぐに使える実際の HailoRT 統合境界（`hailo_runtime.py`）、そして OpenCV 経由で実際の USB/V4L2 デバイス**または実際の RTSP IP カメラ**（`config.py` の `source_type: "ip"`、`mjpeg_server.py` の `cv2.CAP_FFMPEG`）を開き、実際の MJPEG を HTTP 経由で配信する実際の v0 キャプチャ＋配信パス（`mjpeg_server.py`、`stream serve`） - `HYDRA-UMC-OS` 自身の `provisioning/install_vision_streamer.sh` により CM5 にインストール可能（管理者が割り当てたカメラスロットごとに 1 つの systemd インスタンス、`systemd/hydra-umc-vision-streamer@.service`）で、すでに `HYDRA-UMC-SERVER` の `GET /api/camera/:id/stream` プロキシと `HYDRA-UMC-STUDIO` のカメラビューによってライブで利用されている。IP カメラ経路はシミュレータのテストでのみカバーされています（実際の IP カメラでの検証は実機ベンチ待ちです） - 合計 274 個のテスト、さらに検証済みのエントリポイントを持つ実際のインストール
 可能な Python パッケージ、そして、バージョンを上げる明示的な `bump` コマンド。ビルドがバージョンを変えることはありません）。実際に取得されたビルド/実行出力については
 [`CHANGELOG.md`](CHANGELOG.md) を参照してください。
 
