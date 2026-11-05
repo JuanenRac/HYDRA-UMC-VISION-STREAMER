@@ -4,6 +4,8 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+- **Private-key blocks are redacted in one linear pass:** the shared redaction no longer takes quadratic time on a text with thousands of private-key BEGIN markers.
+
 - **Documentation: the real IP camera verification is no longer claimed.** The README, its translations and the CLI reference now say that the IP camera path is covered by simulator tests only and that the verification against real IP cameras is pending on the bench.
 - **`GET /latest.json` carries the frame as the SDK `FrameMeta` message:** a `frame_meta` object (`schema_version`, `frame_id`, `capture_ts_utc`, `width`, `height`, `pixel_format` `JPEG`, `session_id`) is added next to the existing fields, with the size read from the JPEG header; it is left out when the header cannot be read, and a test checks it against the SDK validator when the SDK is next to this repository.
 - **The systemd template refuses a camera slot outside 1-8:** an `ExecStartPre` checks the instance name before the port is computed from it, so a mistyped instance fails at start instead of opening an unexpected port.
