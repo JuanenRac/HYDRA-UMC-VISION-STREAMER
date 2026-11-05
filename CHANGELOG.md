@@ -4,6 +4,8 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [0.2.5] - Private-key blocks are redacted in one linear pass: the shared redaction no longer takes quadratic time on a text with thousands of private-key BEGIN markers. (and 3 more changes)
+
 - **Private-key blocks are redacted in one linear pass:** the shared redaction no longer takes quadratic time on a text with thousands of private-key BEGIN markers.
 
 - **Documentation: the real IP camera verification is no longer claimed.** The README, its translations and the CLI reference now say that the IP camera path is covered by simulator tests only and that the verification against real IP cameras is pending on the bench.
