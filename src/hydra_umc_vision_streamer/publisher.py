@@ -157,11 +157,12 @@ def build_feed_command(config: PublishConfig, camera: str, fps: int) -> list[str
     if isinstance(fps, bool) or not isinstance(fps, int) or not 1 <= fps <= 240:
         raise PublishError("fps must be an integer from 1 to 240")
     head = ["-q", "-e", "fdsrc", "fd=0", "do-timestamp=true", "!", f"image/jpeg,framerate={fps}/1", "!", "jpegparse", "!"]
+    body: list[str]
     if config.codec == "h264":
         body = ["jpegdec", "!", "videoconvert", "!", "x264enc", "tune=zerolatency", "speed-preset=ultrafast", f"bitrate={config.bitrate_kbps}", "key-int-max=30", "!", "h264parse", "!"]
     else:
         # rtspclientsink payloads by itself (its pads take the encoded media, not RTP): a payloader in front of it does not link
-        body: list[str] = []
+        body = []
     command = [*config.gst_launch, *head, *body, "rtspclientsink", f"location={rtsp_location(config, camera)}"]
     bad = [c for c in command[len(config.gst_launch):] if not _PART.fullmatch(c)]
     if bad:
