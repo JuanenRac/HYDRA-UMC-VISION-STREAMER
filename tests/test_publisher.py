@@ -19,6 +19,7 @@ from hydra_umc_vision_streamer.publisher import (
     FeedPublisher,
     PublishError,
     build_feed_command,
+    jpeg_subsampling,
     load_publish_config,
     parse_publish_config,
     probe_ready,
@@ -242,3 +243,60 @@ def test_the_publish_route_reports_the_state_of_each_camera(tmp_path: Path, monk
         publisher.stop()
         httpd.shutdown()
         httpd.server_close()
+
+
+def _jpeg_header(*components: int) -> bytes:
+    """A frame header (SOF0) of the given sampling bytes, one per component, behind a start of image."""
+    table = b"".join(bytes([number + 1, sampling, 0]) for number, sampling in enumerate(components))
+    body = b"\x08\x00\xf0\x01\x40" + bytes([len(components)]) + table
+    return b"\xff\xd8\xff\xdb\x00\x04\x00\x00\xff\xc0" + (len(body) + 2).to_bytes(2, "big") + body + b"\xff\xda"
+
+
+@pytest.mark.parametrize(
+    ("components", "expected"),
+    [((0x22, 0x11, 0x11), "4:2:0"), ((0x21, 0x11, 0x11), "4:2:2"), ((0x11, 0x11, 0x11), "4:4:4"), ((0x11,), "gray"), ((0x12, 0x11, 0x11), "other"), ((0x22, 0x21, 0x11), "other")],
+)
+def test_the_chroma_layout_is_read_from_the_frame_header(components: tuple[int, ...], expected: str) -> None:
+    assert jpeg_subsampling(_jpeg_header(*components)) == expected
+
+
+@pytest.mark.parametrize("payload", [b"", b"\xff\xd8", JPEG, b"\xff\xd8\xff\xc0\x00", b"\xff\xd8\xff\xc0\x00\x0b\x08\x00\xf0", b"\xff\xd8\xff\xda\x00\x02"])
+def test_a_jpeg_without_a_readable_frame_header_has_no_layout(payload: bytes) -> None:
+    assert jpeg_subsampling(payload) is None
+
+
+class _Fixed:
+    fps = 25
+
+    def __init__(self, payload: bytes) -> None:
+        self.payload = payload
+        self.number = 0
+
+    def wait_for_frame(self, last_seen: int, timeout: float = 5.0):
+        time.sleep(0.005)
+        self.number += 1
+        return Frame(self.payload, self.number, "s", time.time())
+
+
+def test_mjpeg_frames_of_a_layout_the_payloader_refuses_are_not_fed_and_the_status_says_why(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("FAKE_GST_OUT", str(tmp_path / "gst.log"))
+    publisher = FeedPublisher("front", _Fixed(_jpeg_header(0x11, 0x11, 0x11)), _config(codec="mjpeg"))
+    publisher.start()
+    try:
+        assert _wait(lambda: publisher.status()["lastError"] is not None)
+        time.sleep(0.1)
+        status = publisher.status()
+    finally:
+        publisher.stop()
+    assert status["framesSent"] == 0 and "4:4:4" in status["lastError"] and "h264" in status["lastError"]
+
+
+def test_mjpeg_frames_of_a_supported_layout_and_h264_frames_of_any_layout_are_fed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("FAKE_GST_OUT", str(tmp_path / "gst.log"))
+    for codec, header in (("mjpeg", _jpeg_header(0x22, 0x11, 0x11)), ("h264", _jpeg_header(0x11, 0x11, 0x11))):
+        publisher = FeedPublisher("front", _Fixed(header), _config(codec=codec))
+        publisher.start()
+        try:
+            assert _wait(lambda p=publisher: p.status()["framesSent"] >= 3)
+        finally:
+            publisher.stop()

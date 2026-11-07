@@ -47,7 +47,7 @@ class _Camera:
 
 def make_jpeg(folder: Path) -> bytes:
     target = folder / "pattern.jpg"
-    subprocess.run(["gst-launch-1.0", "-q", "videotestsrc", "num-buffers=1", "!", "video/x-raw,width=320,height=240", "!", "jpegenc", "!", "filesink", f"location={target}"], check=True, timeout=60)
+    subprocess.run(["gst-launch-1.0", "-q", "videotestsrc", "num-buffers=1", "!", "video/x-raw,format=I420,width=320,height=240", "!", "jpegenc", "!", "filesink", f"location={target}"], check=True, timeout=60)
     data = target.read_bytes()
     if not data.startswith(b"\xff\xd8"):
         raise RuntimeError("gst-launch did not write a JPEG")

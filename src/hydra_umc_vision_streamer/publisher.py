@@ -15,7 +15,8 @@ is never opened twice, and that an IP camera's password never appears in an argu
 If the child ends, it is started again after the deterministic delays of `reconnect.py`; after the last attempt the state is `given_up` and stays so. A
 machine without `gst-launch-1.0` ends in `unavailable` at once (a missing program is not a failure that waiting cures). With `mediamtxApi` the status
 also asks MediaMTX whether the path is ready. All of this is off unless the publishing file says `"enabled": true` and the server is started with
-`--publish`. It was tried against a stand-in program; running it against a real GStreamer and a real MediaMTX needs both installed.
+`--publish`. It was tried against a stand-in program and, in a manual workflow, against a real GStreamer and a real MediaMTX. `codec: mjpeg` only carries 4:2:0 or
+4:2:2 JPEG frames (the RTP payloader of GStreamer refuses the rest); frames of another layout are not fed and the status says why.
 """
 from __future__ import annotations
 
@@ -170,6 +171,39 @@ def build_feed_command(config: PublishConfig, camera: str, fps: int) -> list[str
     return command
 
 
+def jpeg_subsampling(payload: bytes) -> str | None:
+    """The chroma layout a baseline JPEG declares in its frame header ("4:2:0", "4:2:2", "4:4:4", "gray" or "other"), or None when no frame header is found.
+
+    The RTP payloader of GStreamer (`rtpjpegpay`, behind `codec: mjpeg`) only accepts 4:2:0 and 4:2:2: it rejects every frame of anything else with
+    "Invalid component" and nothing ever reaches MediaMTX, so the feeder asks first and says why instead of publishing silence.
+    """
+    index = 2
+    size = len(payload)
+    while index + 4 <= size and payload[index] == 0xFF:
+        marker = payload[index + 1]
+        if marker == 0xFF:
+            index += 1
+            continue
+        if marker in (0xC0, 0xC1, 0xC2):
+            head = payload[index + 4 : index + 10]
+            if len(head) < 6:
+                return None
+            count = head[5]
+            table = payload[index + 10 : index + 10 + 3 * count]
+            if count == 1:
+                return "gray"
+            if count != 3 or len(table) < 9:
+                return "other"
+            first, second, third = table[1], table[4], table[7]
+            if second != 0x11 or third != 0x11:
+                return "other"
+            return {0x11: "4:4:4", 0x21: "4:2:2", 0x22: "4:2:0"}.get(first, "other")
+        if marker == 0xDA or marker == 0xD9:
+            return None
+        index += 2 + (payload[index + 2] << 8 | payload[index + 3])
+    return None
+
+
 def probe_ready(api: Address, camera: str, timeout: float = 2.0) -> bool | None:
     """Whether MediaMTX says the path of `camera` has a publisher (`GET /v3/paths/get/<name>`, field `ready`). None when it cannot be asked or does not say."""
     connection = http.client.HTTPConnection(api.host, api.port, timeout=timeout)
@@ -310,6 +344,11 @@ class FeedPublisher:
             if frame is None:
                 continue
             last_seen = frame.frame_id
+            if self.config.codec == "mjpeg":
+                layout = jpeg_subsampling(frame.payload)
+                if layout not in (None, "4:2:0", "4:2:2"):
+                    self._set("publishing", f"the camera sends {layout} JPEG frames and codec mjpeg can only carry 4:2:0 or 4:2:2: use codec h264")
+                    continue
             try:
                 proc.stdin.write(frame.payload)
                 proc.stdin.flush()
