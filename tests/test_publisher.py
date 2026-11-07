@@ -69,7 +69,7 @@ def test_the_command_has_plain_arguments_and_the_address_of_the_camera() -> None
 
 def test_the_mjpeg_codec_sends_the_frames_on_without_encoding() -> None:
     arguments = build_feed_command(_config(codec="mjpeg", rtspBase="rtsp://localhost:9000/live"), "front", 10)[2:]
-    assert "rtpjpegpay" in arguments and "x264enc" not in arguments and "jpegdec" not in arguments
+    assert "rtpjpegpay" not in arguments and "jpegparse" in arguments and arguments[-1].startswith("location=") and "x264enc" not in arguments and "jpegdec" not in arguments
     assert arguments[-1] == "location=rtsp://localhost:9000/live/front"
 
 

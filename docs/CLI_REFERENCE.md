@@ -400,7 +400,7 @@ An incident is a folder named `<UTC time>-<number>` with `00001.jpg`, `00002.jpg
 | `enabled` | `false` | Must be `true`. |
 | `gstLaunch` | `["gst-launch-1.0"]` | The program, as a list (at most 3 leading arguments). |
 | `rtspBase` | `rtsp://127.0.0.1:8554` | Where MediaMTX listens; the camera is published at `<rtspBase>/<camera>`. Loopback unless `allowRemote` is `true`. |
-| `codec` | `h264` | `h264` encodes with `x264enc`; `mjpeg` sends the JPEG frames on with `rtpjpegpay`. |
+| `codec` | `h264` | `h264` encodes with `x264enc`; `mjpeg` sends the JPEG frames on as they are (`rtspclientsink` payloads them). |
 | `bitrateKbps` | `2000` | Bit rate of `x264enc` (100 to 20000). |
 | `mediamtxApi` | none | Address of the MediaMTX API; the status then says whether the path is ready. |
 | `allowRemote` | `false` | Allow `rtspBase` and `mediamtxApi` away from this machine. |

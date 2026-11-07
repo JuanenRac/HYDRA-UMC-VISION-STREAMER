@@ -33,15 +33,6 @@ jobs:
         run: |
           docker run --detach --name mediamtx --network host -e MTX_API=yes -e MTX_APIADDRESS=127.0.0.1:9997 bluenviron/mediamtx:1.9.3
           for i in $(seq 1 30); do curl --silent --fail http://127.0.0.1:9997/v3/paths/list && break; sleep 1; done
-      - name: Diagnose the MJPEG branch (pad templates and direct pipelines)
-        continue-on-error: true
-        run: |
-          gst-launch-1.0 --version | head -2
-          gst-inspect-1.0 rtspclientsink | sed -n '/Pad Templates/,/Element has/p' | head -30
-          gst-inspect-1.0 rtpjpegpay | sed -n '/Pad Templates/,/Element Properties/p' | head -40
-          for p in "videotestsrc num-buffers=50 ! video/x-raw,width=320,height=240 ! jpegenc ! rtpjpegpay ! rtspclientsink location=rtsp://127.0.0.1:8554/diag1"                    "videotestsrc num-buffers=50 ! video/x-raw,width=320,height=240 ! jpegenc ! jpegparse ! rtpjpegpay ! rtspclientsink location=rtsp://127.0.0.1:8554/diag2"                    "videotestsrc num-buffers=50 ! video/x-raw,width=320,height=240,framerate=10/1 ! jpegenc ! rtpjpegpay ! rtspclientsink protocols=tcp location=rtsp://127.0.0.1:8554/diag3"; do
-            echo "--- $p"; timeout 30 gst-launch-1.0 -e $p 2>&1 | tail -5
-          done
       - name: Publish, check readiness and read back
         run: python tools/real_publish_check.py
       - name: Show the MediaMTX log when it failed

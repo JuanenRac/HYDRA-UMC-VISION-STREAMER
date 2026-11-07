@@ -160,7 +160,8 @@ def build_feed_command(config: PublishConfig, camera: str, fps: int) -> list[str
     if config.codec == "h264":
         body = ["jpegdec", "!", "videoconvert", "!", "x264enc", "tune=zerolatency", "speed-preset=ultrafast", f"bitrate={config.bitrate_kbps}", "key-int-max=30", "!", "h264parse", "!"]
     else:
-        body = ["rtpjpegpay", "!"]
+        # rtspclientsink payloads by itself (its pads take the encoded media, not RTP): a payloader in front of it does not link
+        body: list[str] = []
     command = [*config.gst_launch, *head, *body, "rtspclientsink", f"location={rtsp_location(config, camera)}"]
     bad = [c for c in command[len(config.gst_launch):] if not _PART.fullmatch(c)]
     if bad:
