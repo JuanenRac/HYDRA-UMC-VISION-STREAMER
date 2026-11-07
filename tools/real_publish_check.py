@@ -83,12 +83,17 @@ def check_codec(codec: str, jpeg: bytes) -> str | None:
 def main() -> int:
     with tempfile.TemporaryDirectory() as folder:
         jpeg = make_jpeg(Path(folder))
-    for codec in ("mjpeg", "h264"):
+    problems = []
+    for codec in ("h264", "mjpeg"):
         problem = check_codec(codec, jpeg)
         if problem:
-            print(f"REAL_PUBLISH=FAIL {problem}")
-            return 1
-        print(f"codec {codec}: published, ready on MediaMTX and read back")
+            print(f"REAL_PUBLISH_PROBLEM {problem}")
+            problems.append(problem)
+        else:
+            print(f"codec {codec}: published, ready on MediaMTX and read back")
+    if problems:
+        print(f"REAL_PUBLISH=FAIL {len(problems)} codec(s) failed")
+        return 1
     print("REAL_PUBLISH=PASS")
     return 0
 
