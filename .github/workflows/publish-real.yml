@@ -1,0 +1,43 @@
+# =============================================================================
+# HYDRA-UMC-VISION-STREAMER - publishing to a real MediaMTX through a real GStreamer (manual)
+# Copyright (C) 2026 JuanenRac (Electro Hobby 3D) <electrohobby3d@gmail.com>
+# GPL-3.0-or-later - see LICENSE
+# =============================================================================
+name: Publish to MediaMTX (manual)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Publish and read back, MJPEG and H.264
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - name: Install GStreamer with the plugin sets and the RTSP client sink
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q gstreamer1.0-tools gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-libav gstreamer1.0-rtsp
+          gst-inspect-1.0 rtspclientsink | head -3
+      - name: Start MediaMTX with its API
+        run: |
+          docker run --detach --name mediamtx --network host -e MTX_API=yes -e MTX_APIADDRESS=127.0.0.1:9997 bluenviron/mediamtx:1.9.3
+          for i in $(seq 1 30); do curl --silent --fail http://127.0.0.1:9997/v3/paths/list && break; sleep 1; done
+      - name: Publish, check readiness and read back
+        run: python tools/real_publish_check.py
+      - name: Show the MediaMTX log when it failed
+        if: ${{ failure() }}
+        run: docker logs mediamtx | tail -60
+      - name: Stop MediaMTX
+        if: ${{ always() }}
+        run: docker rm --force mediamtx
