@@ -192,8 +192,10 @@ def jpeg_subsampling(payload: bytes) -> str | None:
             table = payload[index + 10 : index + 10 + 3 * count]
             if count == 1:
                 return "gray"
-            if count != 3 or len(table) < 9:
+            if count != 3:
                 return "other"
+            if len(table) < 9:
+                return None  # the header is cut short: unknown, not another layout
             first, second, third = table[1], table[4], table[7]
             if second != 0x11 or third != 0x11:
                 return "other"
