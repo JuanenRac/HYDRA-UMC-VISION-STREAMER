@@ -121,7 +121,7 @@ O diagrama abaixo é o fluxo de dados de destino para que este projeto está a s
 
 ### Porque não há `hardware/`, `firmware/`, `os/` nem `models/` aqui
 
-O CM5 + Hailo-8 é hardware comercial sem placa própria para desenhar, ao contrário das placas STM32H745/STM32G474 à medida dentro do [HYDRA-UMC](https://github.com/JuanenRac/HYDRA-UMC) - pelo que não existe pasta `hardware/`/`firmware/` em nenhum dos 5 projetos do Nó de IA de Visão. O `os/` (a imagem HydraOS partilhada) e o `models/` (os ficheiros `.hef` compilados realmente servidos à NPU) vivem apenas no pai de integração, [HYDRA-UMC-VISION-NODE](https://github.com/JuanenRac/HYDRA-UMC-VISION-NODE), já que é o processo que detém a imagem do anfitrião CM5 e o identificador do dispositivo Hailo-8 - levar cópias separadas para aqui seria apenas estado extra para manter sincronizado sem qualquer benefício.
+O CM5 + Hailo-8 é hardware comercial sem placa própria para desenhar, ao contrário das placas STM32H757/STM32G474 à medida dentro do [HYDRA-UMC](https://github.com/JuanenRac/HYDRA-UMC) - pelo que não existe pasta `hardware/`/`firmware/` em nenhum dos 5 projetos do Nó de IA de Visão. O `os/` (a imagem HydraOS partilhada) e o `models/` (os ficheiros `.hef` compilados realmente servidos à NPU) vivem apenas no pai de integração, [HYDRA-UMC-VISION-NODE](https://github.com/JuanenRac/HYDRA-UMC-VISION-NODE), já que é o processo que detém a imagem do anfitrião CM5 e o identificador do dispositivo Hailo-8 - levar cópias separadas para aqui seria apenas estado extra para manter sincronizado sem qualquer benefício.
 
 ### Forma prevista do pipeline
 
@@ -310,7 +310,7 @@ Este projeto faz parte do ecossistema de robótica HYDRA-UMC do mesmo autor (Jua
 **Também fazem parte do ecossistema**
 
 *Hardware e plataforma centrais*
-- **[HYDRA-UMC](https://github.com/JuanenRac/HYDRA-UMC)** — o desenho da placa-mãe do braço robótico: anfitrião CM5 + STM32H745 de dois núcleos, pensado para orquestrar até 8 braços de ferramenta por CAN-OTA/SPI-OTA (firmware numa fase inicial; ainda sem placa montada).
+- **[HYDRA-UMC](https://github.com/JuanenRac/HYDRA-UMC)** — o desenho da placa-mãe do braço robótico: anfitrião NVIDIA Jetson Orin NX + STM32H757 de dois núcleos (a CM5 fica como banco piloto), pensado para orquestrar até 8 braços de ferramenta por CAN-OTA/SPI-OTA (firmware numa fase inicial; ainda sem placa montada).
 - **[HYDRA-UMC-OS](https://github.com/JuanenRac/HYDRA-UMC-OS)** — camada de produto reproduzível do Raspberry Pi OS para o CM5: agente só de leitura, configuração/perfis validados, aprovisionamento Wi-Fi de primeiro contacto.
 - **[HYDRA-UMC-SDK](https://github.com/JuanenRac/HYDRA-UMC-SDK)** — o contrato JSON-Schema partilhado e a fronteira de software de controlo de trabalhos contra a qual cada bridge valida os seus comandos (não é uma função de segurança certificada).
 - **[HYDRA-UMC-CONNECTOR-HUB](https://github.com/JuanenRac/HYDRA-UMC-CONNECTOR-HUB)** — registo declarativo de manifestos de adaptador e validador para conectores de máquinas externas; estende a ideia de contrato do SDK a máquinas externas sem substituir os projetos de gateway industrial.
