@@ -102,6 +102,8 @@ USB 3.0 カメラストリームを、フレームが Hailo-8 NPU に到達す�
 
 **HYDRA-UMC-VISION-STREAMER** は Vision AI Node のキャプチャ側です。最大 8 台のカメラの設定を検証し、それぞれの GStreamer パイプラインと MediaMTX リレーを記述し、上限付きのフレームバッファと再接続ポリシーを備えた MJPEG ストリームを配信します。Hailo-8 への受け渡しは、実際のランタイムを必要とする定義済みの境界です。
 
+> **プラットフォーム：** この README の「CM5」は、現在動作している試験用ベンチを指します。HYDRA-UMC の目標プラットフォームは NVIDIA Jetson Orin NX 16 GB ですが、これは製作も試験もされていない設計です。
+
 ## 🏛️ アーキテクチャ
 
 <p align="center">

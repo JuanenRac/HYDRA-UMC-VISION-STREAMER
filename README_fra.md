@@ -93,6 +93,8 @@ C'est l'un des 4 enfants de **[HYDRA-UMC-VISION-NODE](https://github.com/JuanenR
 
 **HYDRA-UMC-VISION-STREAMER** est le côté capture du Vision AI Node : il valide la configuration de jusqu'à huit caméras, décrit le pipeline GStreamer et le relais MediaMTX de chacune et sert un flux MJPEG avec un tampon d'images borné et une politique de reconnexion. Le passage au Hailo-8 est une frontière définie qui exige l'environnement réel.
 
+> **Plateforme :** là où ce README dit CM5, il s'agit du banc pilote qui fonctionne aujourd'hui ; la plateforme visée par HYDRA-UMC est un NVIDIA Jetson Orin NX 16 Go, une conception ni construite ni testée.
+
 ## 🏛️ Architecture
 
 <p align="center">

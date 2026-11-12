@@ -99,6 +99,8 @@ GPL-3.0-or-later - see LICENSE
 
 **HYDRA-UMC-VISION-STREAMER** 是 Vision AI Node 的采集端：它验证最多八个摄像头的配置，描述每个摄像头的 GStreamer 流水线和 MediaMTX 中继，并提供带有限帧缓冲和重连策略的 MJPEG 流。向 Hailo-8 的交接是一个需要真实运行时的已定义边界。
 
+> **平台：** 本 README 中的 CM5 指的是目前正在运行的试验台；HYDRA-UMC 的目标平台是 NVIDIA Jetson Orin NX 16 GB，这是尚未制造或测试的设计。
+
 ## 🏛️ 架构
 
 <p align="center">

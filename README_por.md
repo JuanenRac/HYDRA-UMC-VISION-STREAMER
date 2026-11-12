@@ -93,6 +93,8 @@ O **HYDRA-UMC-VISION-STREAMER** destina-se a ser a camada de ingestão de multim
 
 O **HYDRA-UMC-VISION-STREAMER** é o lado de captura do Vision AI Node: valida a configuração de até oito câmaras, descreve a cadeia GStreamer e o relé MediaMTX de cada uma e serve um fluxo MJPEG com um buffer de fotogramas limitado e uma política de reconexão. A entrega ao Hailo-8 é uma fronteira definida que precisa do ambiente real.
 
+> **Plataforma:** onde este README diz CM5, refere-se ao banco piloto que funciona hoje; a plataforma objetivo do HYDRA-UMC é uma NVIDIA Jetson Orin NX de 16 GB, um desenho que não foi construído nem testado.
+
 ## 🏛️ Arquitetura
 
 <p align="center">
