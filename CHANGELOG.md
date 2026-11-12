@@ -1,8 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
 All notable changes to this project are documented here.
 
-## [Unreleased]
+## [0.2.6] - The command line is tested in the same process: `tests/test_main_commands.py` (24 tests) calls `main()` directly, so the coverage run sees it (the earlier CLI tests run a child process). It checks `config validate`, `gst` and `mediamtx` (a missing file, an RTS
 
 - **The command line is tested in the same process:** `tests/test_main_commands.py` (24 tests) calls `main()` directly, so the coverage run sees it (the earlier CLI tests run a child process). It checks `config validate`, `gst` and `mediamtx` (a missing file, an RTSP base that is not plain), the `stream simulate` bound and its failure branch, every refusal of `stream serve` and `serve-all` before the port is bound (flags that go together, camera not in the list, environment variable not set, short or unreadable token, address that is not loopback, broken recording, publishing or tuning file, bad snapshot skew), what is passed on to the server for a USB and an IP camera, a camera that does not open, Ctrl+C, and `discover-usb`. The server functions are stand-ins: nothing opens a camera or a socket. Coverage of `main.py` 55 to 99 %.
 - **Fixed-seed fuzzing of the publishing file, the command line and the JPEG header reader:** `tests/test_publisher_fuzz.py` (4 tests, thousands of random blocks, names, frame rates and byte strings) checks that only the error of the module comes out, that every token of the command is plain and that a camera name is built into an address only when it is plain. It found that a header cut short was read as another layout instead of as unknown; it is unknown now, so the frame is fed.
