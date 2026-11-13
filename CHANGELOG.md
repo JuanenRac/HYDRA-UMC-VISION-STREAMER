@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- **A simulation bench for the capture loop:** `tests/test_simulation_bench.py` runs the real capture loop, buffer and frame metadata against a synthetic camera that follows a script drawn from a fixed seed (bursts of failed reads that are only jitter, a long silence, a device that comes back at once or only after several tries, one that never comes back) and checks the sessions, the numbering of the frames, the health, a viewer far slower than the camera, two thousand damaged JPEG headers and the reconnect schedule. The workflow "Simulation bench" runs it on every change, with the tests of the robustness of the streaming, and `docs/SIMULATION.md` describes it.
+- **The coverage of the tests is measured on every change:** the workflow "Coverage floor" runs the whole suite under line and branch coverage and fails when it falls under 91 %.
+
 All notable changes to this project are documented here.
 
 ## [0.2.6] - **README: the platform statement:** a note says that where the README speaks of the CM5 it means the pilot bench that runs today, and that the target platform of HYDRA-UMC, an NVIDIA Jetson Orin NX 16 GB, is a design that has not been built or tested.
