@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- **The SDK pin and the shared tools are up to date:** the SDK dependency names the newest release tag, and the shared tools are the canonical copies again.
 - **A simulation bench for the capture loop:** `tests/test_simulation_bench.py` runs the real capture loop, buffer and frame metadata against a synthetic camera that follows a script drawn from a fixed seed (bursts of failed reads that are only jitter, a long silence, a device that comes back at once or only after several tries, one that never comes back) and checks the sessions, the numbering of the frames, the health, a viewer far slower than the camera, two thousand damaged JPEG headers and the reconnect schedule. The workflow "Simulation bench" runs it on every change, with the tests of the robustness of the streaming, and `docs/SIMULATION.md` describes it.
 - **The coverage of the tests is measured on every change:** the workflow "Coverage floor" runs the whole suite under line and branch coverage and fails when it falls under 91 %.
 
