@@ -213,6 +213,20 @@ def test_serve_reports_a_camera_that_does_not_open_and_a_ctrl_c(monkeypatch, cap
     assert run(monkeypatch, "stream", "serve", "--port", "1", "--device", "0") == 0
 
 
+def test_serve_warns_or_refuses_a_device_address_with_credentials(monkeypatch, capsys, served):
+    url = "rtsp://admin:hunter2@192.168.0.50:554/11"
+    assert run(monkeypatch, "stream", "serve", "--port", "1", "--device", url) == 0
+    err = capsys.readouterr().err
+    assert "warning" in err and "hunter2" not in err
+    assert run(monkeypatch, "stream", "serve", "--port", "1", "--device", url, "--refuse-device-credentials") == 2
+    err = capsys.readouterr().err
+    assert "credentials" in err and "hunter2" not in err
+    # an address without credentials is not a problem, even with the flag
+    assert run(monkeypatch, "stream", "serve", "--port", "1", "--device", "rtsp://192.168.0.50:554/11",
+               "--refuse-device-credentials") == 0
+    assert "warning" not in capsys.readouterr().err
+
+
 # ---- stream serve-all ----
 
 def test_serve_all_refuses_a_missing_list_and_unknown_cameras(monkeypatch, capsys, cameras, tmp_path, served):

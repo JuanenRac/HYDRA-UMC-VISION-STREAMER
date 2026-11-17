@@ -27,7 +27,7 @@ from pathlib import Path
 
 from .access import bind_problem, load_token
 from .buffer import FrameBuffer
-from .config import ConfigError, load_cameras
+from .config import ConfigError, has_credentials_in_url, load_cameras
 from .mediamtx_config import build_mediamtx_paths_yaml, rtsp_url_for
 from .snapshot import SnapshotError, check_max_skew_ms
 from .mjpeg_server import DEFAULT_MAX_CLIENTS, CameraUnavailableError, discover_usb_devices, serve_camera, serve_cameras
@@ -219,6 +219,13 @@ def _cmd_stream_serve(args: argparse.Namespace) -> int:
     if not device:
         print("error: give --device or --device-env", file=sys.stderr)
         return 1
+    if args.device and not args.device_env and has_credentials_in_url(args.device):
+        # A password on the command line shows in the process list of the machine.
+        if args.refuse_device_credentials:
+            print("error: --device carries credentials; give the address by --device-env or --config", file=sys.stderr)
+            return 2
+        print("warning: --device carries credentials, which show in the process list; prefer --device-env or --config",
+              file=sys.stderr)
     try:
         token = load_token(args.token_file)
     except ValueError as exc:
@@ -370,6 +377,10 @@ def _build_parser() -> argparse.ArgumentParser:
         "--device-env", dest="device_env", default=None, metavar="VAR",
         help="Read the device (or RTSP URL, which carries the password) from this environment variable "
              "instead of --device, so it does not show in the process list.",
+    )
+    real.add_argument(
+        "--refuse-device-credentials", dest="refuse_device_credentials", action="store_true",
+        help="Refuse (exit 2) a --device address that carries a user or password instead of only warning.",
     )
     real.add_argument(
         "--device", default=None,

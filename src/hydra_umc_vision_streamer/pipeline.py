@@ -14,6 +14,8 @@ does not open a device or import GStreamer itself.
 """
 from __future__ import annotations
 
+import shlex
+
 from .config import CameraConfig
 
 _CAPS_BY_FORMAT = {
@@ -54,7 +56,7 @@ def build_capture_pipeline(camera: CameraConfig, rtsp_url: str) -> str:
         if depay is None:
             raise ValueError(f"an IP camera streams H264 or MJPG, not {camera.format!r}")
         credentials = " user-id=$CAMERA_USER user-pw=$CAMERA_PASSWORD" if camera.username or camera.password else ""
-        source = f"rtspsrc location={camera.display_target()} latency=0{credentials} ! {depay}"
+        source = f"rtspsrc location={shlex.quote(camera.display_target())} latency=0{credentials} ! {depay}"
     else:
         caps = _CAPS_BY_FORMAT[camera.format].format(
             width=camera.width, height=camera.height, fps=camera.fps
@@ -66,5 +68,5 @@ def build_capture_pipeline(camera: CameraConfig, rtsp_url: str) -> str:
         f"{source} ! "
         f"tee name=t "
         f"t. ! queue leaky=downstream max-size-buffers=1 ! appsink name={camera.name}_hailo_sink max-buffers=1 drop=true sync=false "
-        f"t. ! queue leaky=downstream max-size-buffers=2 ! rtspclientsink location={rtsp_url}"
+        f"t. ! queue leaky=downstream max-size-buffers=2 ! rtspclientsink location={shlex.quote(rtsp_url)}"
     )
