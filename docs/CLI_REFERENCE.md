@@ -354,6 +354,8 @@ its own RTSP path, `profile0` rather than `/11`):
 $ CAMERA_URL="rtsp://admin:secret@192.168.0.211:554/11" hydra-umc-vision-streamer stream serve --device-env CAMERA_URL --port 8100 --width 1920 --height 1080 --fps 15
 ```
 
+An address given by `--device` that carries a user or a password shows in the process list of the machine: the command prints a warning, and `--refuse-device-credentials` makes it stop with status 2 instead. `--device-env` and `--config` do not have the problem.
+
 A client disconnecting mid-stream (closing the browser tab, a dropped
 network link) is handled as a normal, expected event — `BrokenPipeError`,
 `ConnectionResetError`, and (Windows-specific) `ConnectionAbortedError`

@@ -70,6 +70,11 @@ def redact_credentials(text: str) -> str:
     return redact_secrets(_CREDENTIALS_IN_URL_RE.sub(r"\1***@", text))
 
 
+def has_credentials_in_url(text: str) -> bool:
+    """True when `text` holds a URL with a user (and password) part before the host."""
+    return bool(_CREDENTIALS_IN_URL_RE.search(text))
+
+
 def is_valid_host(host: str) -> bool:
     if _HOSTNAME_RE.fullmatch(host):
         return True
