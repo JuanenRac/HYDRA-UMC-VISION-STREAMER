@@ -30,7 +30,7 @@ from .buffer import FrameBuffer
 from .config import ConfigError, has_credentials_in_url, load_cameras
 from .mediamtx_config import build_mediamtx_paths_yaml, rtsp_url_for
 from .snapshot import SnapshotError, check_max_skew_ms
-from .mjpeg_server import DEFAULT_MAX_CLIENTS, CameraUnavailableError, discover_usb_devices, serve_camera, serve_cameras
+from .mjpeg_server import DEFAULT_MAX_CLIENTS, DEFAULT_MAX_THREADS, CameraUnavailableError, discover_usb_devices, serve_camera, serve_cameras
 from .pipeline import build_capture_pipeline
 from .publisher import PublishConfig, PublishError, load_publish_config
 from .capture_tuning import CaptureTuning, TuningError, load_capture_tuning
@@ -160,6 +160,16 @@ def _cmd_stream_simulate(args: argparse.Namespace) -> int:
     return 0
 
 
+def _thread_limit(text: str) -> int:
+    try:
+        value = int(text)
+    except ValueError:
+        value = 0
+    if not 1 <= value <= 1024:
+        raise argparse.ArgumentTypeError("must be a whole number from 1 to 1024")
+    return value
+
+
 def _load_tuning(args: argparse.Namespace) -> tuple[CaptureTuning | None, str | None]:
     """The capture tuning file named on the command line (the defaults apply without it). Returns (tuning, error message or None)."""
     if not getattr(args, "capture_tuning", None):
@@ -244,7 +254,7 @@ def _cmd_stream_serve(args: argparse.Namespace) -> int:
         print(f"error: {problem}", file=sys.stderr)
         return 2
     try:
-        serve_camera(device, args.addr, args.port, width, height, fps, args.max_clients, token, recording, publishing, tuning)
+        serve_camera(device, args.addr, args.port, width, height, fps, args.max_clients, token, recording, publishing, tuning, args.max_threads)
     except CameraUnavailableError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
@@ -304,7 +314,7 @@ def _cmd_stream_serve_all(args: argparse.Namespace) -> int:
     try:
         serve_cameras(
             {c.name: (_device_of(c), c.width, c.height, c.fps) for c in cameras},
-            args.addr, args.port, args.max_clients, token, skew, recording, publishing, tuning,
+            args.addr, args.port, args.max_clients, token, skew, recording, publishing, tuning, args.max_threads,
         )
     except CameraUnavailableError as exc:
         print(f"error: {exc}", file=sys.stderr)
@@ -405,6 +415,10 @@ def _build_parser() -> argparse.ArgumentParser:
         help=f"Maximum concurrent /stream viewers before a 503 is returned (default: {DEFAULT_MAX_CLIENTS})",
     )
     real.add_argument(
+        "--max-threads", type=_thread_limit, default=DEFAULT_MAX_THREADS, dest="max_threads",
+        help=f"Maximum requests of any kind handled at the same time, 1 to 1024; one more gets a 503 (default: {DEFAULT_MAX_THREADS}). /stream viewers have their own, lower limit (--max-clients)",
+    )
+    real.add_argument(
         "--token-file", default=None, dest="token_file",
         help="File with the bearer token every request but GET /health must present (or the HYDRA_UMC_VISION_STREAMER_TOKEN environment variable). Needed to bind an address that is not loopback.",
     )
@@ -434,6 +448,10 @@ def _build_parser() -> argparse.ArgumentParser:
     every.add_argument(
         "--max-clients", type=int, default=DEFAULT_MAX_CLIENTS, dest="max_clients",
         help=f"Maximum concurrent /stream viewers per camera (default: {DEFAULT_MAX_CLIENTS})",
+    )
+    every.add_argument(
+        "--max-threads", type=_thread_limit, default=DEFAULT_MAX_THREADS, dest="max_threads",
+        help=f"Maximum requests of any kind handled at the same time, 1 to 1024; one more gets a 503 (default: {DEFAULT_MAX_THREADS}). /stream viewers have their own, lower limit (--max-clients)",
     )
     every.add_argument(
         "--token-file", default=None, dest="token_file",
