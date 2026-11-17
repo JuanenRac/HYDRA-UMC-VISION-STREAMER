@@ -37,11 +37,13 @@ from __future__ import annotations
 
 import json
 import logging
+import socket
 import sys
 import threading
 import time
 import uuid
 from dataclasses import dataclass
+from typing import Any
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse
 
@@ -84,6 +86,7 @@ MJPEG_BOUNDARY = "hydraumcframe"
 # this project's own bounded-backpressure ethos (buffer.py) applied to
 # concurrent clients instead of buffered frames.
 DEFAULT_MAX_CLIENTS = 5
+DEFAULT_MAX_THREADS = 64   # requests of any kind handled at the same time; /stream has its own, lower limit (max_clients)
 SOCKET_TIMEOUT_SECONDS = 30.0
 # largest body of POST /<camera>/record/trigger (a reason and a source)
 TRIGGER_BODY_BYTES = 1024
@@ -697,9 +700,44 @@ def _publisher_for(name: str, source: MjpegCaptureSource, publishing: PublishCon
     return publisher
 
 
+class BoundedThreadingHTTPServer(ThreadingHTTPServer):
+    """A ThreadingHTTPServer that handles at most `max_threads` requests at the same time: one more is answered `503` and closed without a thread of its own,
+    so `/latest.jpg` and `/snapshot.zip` cannot use up the memory of the process the way a flood of connections could."""
+
+    daemon_threads = True
+
+    def __init__(self, address: tuple[str, int], handler: type[BaseHTTPRequestHandler], max_threads: int = DEFAULT_MAX_THREADS) -> None:
+        if isinstance(max_threads, bool) or not isinstance(max_threads, int) or not 1 <= max_threads <= 1024:
+            raise ValueError(f"max_threads must be an integer from 1 to 1024, got {max_threads!r}")
+        super().__init__(address, handler)
+        self.max_threads = max_threads
+        self.refused = 0
+        self._slots = threading.BoundedSemaphore(max_threads)
+
+    def process_request(self, request: Any, client_address: Any) -> None:
+        if not self._slots.acquire(blocking=False):
+            self.refused += 1
+            try:
+                request.sendall(b"HTTP/1.1 503 Service Unavailable\r\nRetry-After: 1\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
+                request.shutdown(socket.SHUT_WR)
+                request.settimeout(0.05)
+                request.recv(4096)   # read what the client sent, so that closing does not reset the connection before it reads the 503
+            except OSError:
+                pass
+            self.shutdown_request(request)
+            return
+        super().process_request(request, client_address)
+
+    def process_request_thread(self, request: Any, client_address: Any) -> None:
+        try:
+            super().process_request_thread(request, client_address)
+        finally:
+            self._slots.release()
+
+
 def serve_camera(device: str, addr: str, port: int, width: int, height: int, fps: int, max_clients: int = DEFAULT_MAX_CLIENTS, token: str = "",
                  recording: RecordingConfig | None = None, publishing: PublishConfig | None = None,
-                 tuning: CaptureTuning | None = None) -> None:
+                 tuning: CaptureTuning | None = None, max_threads: int = DEFAULT_MAX_THREADS) -> None:
     """Real, blocking entry point: opens `device`, starts capturing, and
     serves the real MJPEG stream at http://addr:port/stream until
     interrupted. Raises CameraUnavailableError/RuntimeError immediately
@@ -718,7 +756,7 @@ def serve_camera(device: str, addr: str, port: int, width: int, height: int, fps
     source.start()
     publisher = _publisher_for("camera", source, publishing)
     try:
-        server = ThreadingHTTPServer((addr, port), make_handler(source, max_clients, token, recorder, publisher))
+        server = BoundedThreadingHTTPServer((addr, port), make_handler(source, max_clients, token, recorder, publisher), max_threads)
         logger.info("MJPEG stream for %s serving on http://%s:%s/stream", source.display_device, addr, port)
 
         def stop_when_given_up() -> None:
@@ -751,6 +789,7 @@ def serve_cameras(
     recording: RecordingConfig | None = None,
     publishing: PublishConfig | None = None,
     tuning: CaptureTuning | None = None,
+    max_threads: int = DEFAULT_MAX_THREADS,
 ) -> None:
     """All the cameras in one process and one port (`GET /<name>/stream` ...), instead of a process, an interpreter and a copy of OpenCV for
     each camera. `cameras` maps a name to `(device, width, height, fps)`. Every camera is opened before the port is bound, and if one cannot
@@ -771,7 +810,7 @@ def serve_cameras(
             publisher = _publisher_for(name, source, publishing)
             if publisher is not None:
                 publishers[name] = publisher
-        server = ThreadingHTTPServer((addr, port), make_multi_handler(sources, max_clients, token, snapshot_max_skew_ms, recorders, publishers))
+        server = BoundedThreadingHTTPServer((addr, port), make_multi_handler(sources, max_clients, token, snapshot_max_skew_ms, recorders, publishers), max_threads)
         logger.info("MJPEG streams for %d camera(s) serving on http://%s:%s/<name>/stream", len(sources), addr, port)
         stop = threading.Event()
 
