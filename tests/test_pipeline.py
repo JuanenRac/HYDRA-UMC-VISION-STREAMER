@@ -36,3 +36,16 @@ def test_pipeline_is_a_single_tee_with_two_branches():
 
     assert pipeline.count("tee name=t") == 1
     assert pipeline.count("t. !") == 2
+
+
+def test_a_query_string_in_the_ip_path_cannot_split_the_command_in_a_shell():
+    import shlex
+
+    camera = CameraConfig(name="door", source_type="ip", host="192.168.0.50", rtsp_port=554,
+                          rtsp_path="/cam?channel=1&subtype=0", width=1280, height=720, fps=10, format="H264")
+    pipeline = build_capture_pipeline(camera, "rtsp://localhost:8554/door")
+
+    tokens = shlex.split(pipeline)
+    assert "location=rtsp://192.168.0.50:554/cam?channel=1&subtype=0" in tokens
+    assert "&" not in tokens
+    assert not any(t.startswith("subtype") for t in tokens)
