@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.2.7]
+
 - **Every route of the stream service has a limit of simultaneous requests:** the server answers `503` with `Retry-After` to a request beyond `--max-threads` (1 to 1024, 64 by default) instead of starting one more thread, so `/latest.jpg` and `/snapshot.zip` cannot be used to exhaust the memory of the process; the viewers of `/stream` keep their own, lower limit (`--max-clients`). Tests hold two requests open and check the `503` of a third, the release of the slot and the limits of the option.
 
 - **A camera address with a password on the command line is flagged:** `stream serve --device` prints a warning when the address carries a user or a password (it shows in the process list of the machine), and the new `--refuse-device-credentials` option stops with status 2 instead; the default only warns. `--device-env` and `--config` are unchanged.
@@ -12,6 +14,8 @@
 - **The coverage of the tests is measured on every change:** the workflow "Coverage floor" runs the whole suite under line and branch coverage and fails when it falls under 91 %.
 
 All notable changes to this project are documented here.
+
+- Build version synchronized with `hydra-umc.project.json` and the repository-native version source.
 
 ## [0.2.6] - **README: the platform statement:** a note says that where the README speaks of the CM5 it means the pilot bench that runs today, and that the target platform of HYDRA-UMC, an NVIDIA Jetson Orin NX 16 GB, is a design that has not been built or tested.
 - The command line is tested in the same process: `tests/test_main_commands.py` (24 tests) calls `main()` directly, so the coverage run sees it (the earlier CLI tests run a child process). It checks `config validate`, `gst` and `mediamtx` (a missing file, an RTS
