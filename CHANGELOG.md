@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- **Token and password files saved with a byte order mark are read:** a file written by an editor of Windows as "UTF-8 with BOM" kept the mark in front of the secret, so the credential was refused or could not be sent in a header. The mark is dropped now; a file in another encoding (UTF-16) is refused with a clear message.
+
 ## [0.2.7]
 
 - **Every route of the stream service has a limit of simultaneous requests:** the server answers `503` with `Retry-After` to a request beyond `--max-threads` (1 to 1024, 64 by default) instead of starting one more thread, so `/latest.jpg` and `/snapshot.zip` cannot be used to exhaust the memory of the process; the viewers of `/stream` keep their own, lower limit (`--max-clients`). Tests hold two requests open and check the `503` of a third, the release of the slot and the limits of the option.
